@@ -1,0 +1,273 @@
+/* ==========================================================================
+   LeadPulse AI - Animation Library v2
+   All keyframes and animation utilities.
+   ========================================================================== */
+
+/* ── Core Entrance Animations ───────────────────────────────────────────────── */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── Toast Animations ────────────────────────────────────────────────────────── */
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(80px) scale(0.96); }
+  to   { opacity: 1; transform: translateX(0)    scale(1); }
+}
+
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(80px); }
+}
+
+/* ── Radar / Scan Animations ─────────────────────────────────────────────────── */
+
+@keyframes radar-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7), 0 0 6px rgba(16, 185, 129, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0), 0 0 12px rgba(16, 185, 129, 0.3);
+    transform: scale(1.15);
+  }
+}
+
+@keyframes radar-ring-expand {
+  0%   { transform: scale(0.2); opacity: 0.9; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+@keyframes radar-sweep {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Shimmer / Skeleton ───────────────────────────────────────────────────────── */
+
+@keyframes shimmer-sweep {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.03) 75%
+  );
+  background-size: 200% auto;
+  animation: shimmer-sweep 1.6s linear infinite;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-line {
+  height: 10px;
+  margin-bottom: 8px;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-line.w-full  { width: 100%; }
+.skeleton-line.w-3-4   { width: 75%;  }
+.skeleton-line.w-1-2   { width: 50%;  }
+.skeleton-line.w-1-3   { width: 33%;  }
+
+/* ── Count-Up Number Animation ────────────────────────────────────────────────── */
+
+@keyframes count-up-reveal {
+  from { opacity: 0; transform: translateY(8px); filter: blur(4px); }
+  to   { opacity: 1; transform: translateY(0);   filter: blur(0); }
+}
+
+.metric-number.animating {
+  animation: count-up-reveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Spin ────────────────────────────────────────────────────────────────────── */
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 0.8s linear infinite;
+}
+
+/* ── Progress Bar Fill ──────────────────────────────────────────────────────── */
+
+@keyframes progress-fill {
+  from { width: 0%; }
+}
+
+/* ── Glow Pulse (for badges and highlights) ──────────────────────────────────── */
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px  rgba(99, 102, 241, 0.3); }
+  50%       { box-shadow: 0 0 20px rgba(99, 102, 241, 0.6); }
+}
+
+@keyframes glow-emerald-pulse {
+  0%, 100% { box-shadow: 0 0 6px  rgba(16, 185, 129, 0.3); }
+  50%       { box-shadow: 0 0 18px rgba(16, 185, 129, 0.65); }
+}
+
+.glow-indigo  { animation: glow-pulse         2s ease-in-out infinite; }
+.glow-emerald { animation: glow-emerald-pulse  2s ease-in-out infinite; }
+
+/* ── Floating Background Nodes ──────────────────────────────────────────────── */
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0)    rotate(0deg); opacity: 0.4; }
+  33%       { transform: translateY(-18px) rotate(3deg);  opacity: 0.7; }
+  66%       { transform: translateY(-8px)  rotate(-2deg); opacity: 0.5; }
+}
+
+@keyframes float-medium {
+  0%, 100% { transform: translateY(0)    rotate(0deg);  opacity: 0.3; }
+  50%       { transform: translateY(-22px) rotate(-4deg); opacity: 0.6; }
+}
+
+/* ── Radar Scanning Overlay ──────────────────────────────────────────────────── */
+
+.radar-scanning-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+  gap: 1.5rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.radar-scope {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 2px solid rgba(99, 102, 241, 0.3);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.08), transparent 70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radar-scope::before,
+.radar-scope::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+.radar-scope::before { width: 70%;  height: 70%;  }
+.radar-scope::after  { width: 40%;  height: 40%;  }
+
+.radar-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(99, 102, 241, 0.5);
+  animation: radar-ring-expand 1.8s cubic-bezier(0.15, 1, 0.3, 1) infinite;
+}
+
+.radar-ring:nth-child(2) { animation-delay: 0.6s; }
+.radar-ring:nth-child(3) { animation-delay: 1.2s; }
+
+.radar-scanner-arm {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 50%;
+  height: 2px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.9), transparent);
+  animation: radar-sweep 1.8s linear infinite;
+  border-radius: 2px;
+}
+
+.radar-center-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  box-shadow: 0 0 12px var(--accent-primary-glow);
+  animation: radar-pulse 2s ease-in-out infinite;
+  z-index: 1;
+}
+
+/* ── DnD Kanban States ───────────────────────────────────────────────────────── */
+
+.pipeline-card.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg) scale(1.02);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  cursor: grabbing;
+}
+
+.pipeline-col.drag-over {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.45);
+}
+
+@keyframes card-drop {
+  0%   { transform: scale(1.04); box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35); }
+  100% { transform: scale(1);    box-shadow: none; }
+}
+
+.pipeline-card.just-dropped {
+  animation: card-drop 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Verification Step Animations ────────────────────────────────────────────── */
+
+@keyframes step-appear {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.verify-step-item {
+  animation: step-appear 0.25s ease-out forwards;
+}
+
+/* ── Progress Bar ────────────────────────────────────────────────────────────── */
+
+@keyframes progress-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.7; }
+}
+
+.progress-bar-indeterminate {
+  animation: progress-pulse 1.2s ease-in-out infinite;
+}
+
+/* ── Card Hover Float ─────────────────────────────────────────────────────────── */
+
+@keyframes card-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-2px); }
+}

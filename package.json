@@ -1,0 +1,29 @@
+{
+  "name": "lead-collect-tool",
+  "version": "1.0.0",
+  "description": "LeadPulse AI - B2B Lead Generation & Sales Prospecting Prototype",
+  "type": "module",
+  "main": "index.html",
+  "scripts": {
+    "start": "serve -l 3000 .",
+    "dev": "serve -l 3000 .",
+    "serve": "serve -l 3000 .",
+    "server:dev": "npm --prefix server run dev",
+    "server:build": "npm --prefix server run build",
+    "server:start": "npm --prefix server run start",
+    "prisma:generate": "npm --prefix server run prisma:generate",
+    "prisma:migrate": "npm --prefix server run prisma:migrate",
+    "prisma:seed": "npm --prefix server run prisma:seed"
+  },
+  "keywords": [
+    "lead-generation",
+    "b2b",
+    "prospecting",
+    "sales-intelligence"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "serve": "^14.2.4"
+  }
+}
