@@ -22,3 +22,6 @@ Thumbs.db
 # Editor configurations
 .vscode/
 .idea/
+
+# Local helpers
+push.bat
