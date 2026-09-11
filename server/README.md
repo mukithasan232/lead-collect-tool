@@ -35,7 +35,7 @@ Set these environment variables in your deployment dashboard (e.g., Render, Rail
 | `NUBELA_API_KEY` / `PROXYCURL_API_KEY` | **Optional** | NinjaPear (formerly Proxycurl) workspace API key for email lookup | `9cc6cab7...` |
 | `PORT` | **No** | Port to listen on (automatically set by Railway/Render/Heroku) | `5001` or `8080` |
 | `NODE_ENV` | **Yes** | Set to `production` for production deployments | `production` |
-| `CORS_ORIGIN` | **No** | Comma-separated list of allowed frontend origins (whitelists `https://lead-collect-tool-mu.vercel.app`, `https://app.codernest.cloud`, and `*.vercel.app`) | `https://lead-collect-tool-mu.vercel.app,https://app.codernest.cloud` |
+| `CORS_ORIGIN` | **No** | Comma-separated list of allowed frontend origins (whitelists `https://lead.codernest.cloud`, `https://app.codernest.cloud`, and `*.vercel.app`) | `https://lead.codernest.cloud,https://app.codernest.cloud` |
 | `API_PREFIX` | **No** | Route prefix for API endpoints (defaults to `/api/v1`) | `/api/v1` |
 
 ---

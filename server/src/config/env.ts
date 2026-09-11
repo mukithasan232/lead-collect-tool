@@ -7,9 +7,10 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 const defaultAllowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
-  'https://lead-collect-tool-mu.vercel.app',
+  'https://lead.codernest.cloud',
   'https://app.codernest.cloud',
   'https://codernest.cloud',
+  'https://lead-collect-tool-mu.vercel.app',
 ];
 
 const rawCors = process.env.CORS_ORIGIN || '';
