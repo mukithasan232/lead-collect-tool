@@ -153,7 +153,13 @@
   pointer-events: none;
 }
 
-.search-icon svg { width: 18px; height: 18px; }
+.search-icon svg {
+  width: 18px;
+  height: 18px;
+  max-width: 18px;
+  max-height: 18px;
+  flex-shrink: 0;
+}
 
 .search-input {
   width: 100%;
