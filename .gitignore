@@ -7,7 +7,6 @@ dist/
 server/dist/
 
 # Environment and sensitive secrets
-.env
 server/.env
 *.env.local
 
@@ -20,8 +19,8 @@ npm-debug.log*
 Thumbs.db
 
 # Editor configurations
-.vscode/
 .idea/
 
 # Local helpers
 push.bat
+config.bat

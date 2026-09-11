@@ -8,6 +8,7 @@
     "start": "node server.js",
     "dev": "serve -l 3000 .",
     "serve": "serve -l 3000 .",
+    "vercel-build": "echo 'Static site - no build step required'",
     "server:dev": "npm --prefix server run dev",
     "server:build": "npm --prefix server run build",
     "server:start": "npm --prefix server run start",
@@ -24,7 +25,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "dotenv": "^8.2.0",
     "express": "^5.2.1",
+    "node-fetch": "^3.3.2",
     "serve": "^14.2.4"
   }
 }
