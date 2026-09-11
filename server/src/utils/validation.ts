@@ -1,8 +1,6 @@
 import { z } from 'zod';
 
 /**
- * Validates a 24-character hexadecimal MongoDB ObjectId string
+ * Validates a CUID string (Prisma default for PostgreSQL @default(cuid()))
  */
-export const objectIdSchema = z
-  .string()
-  .regex(/^[0-9a-fA-F]{24}$/, 'Invalid MongoDB ObjectId format');
+export const cuidSchema = z.string().cuid('Invalid ID format');

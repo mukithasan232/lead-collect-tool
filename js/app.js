@@ -13,6 +13,13 @@ import { VerificationEngine } from './verification-engine.js';
 
 const STORAGE_KEY = 'leadpulse_leads_v2';
 
+// ── Dynamic API Base URL Configuration ─────────────────────────────────────────
+// Automatically falls back to localhost:5001/api/v1 during local development,
+// and routes to production backend URL when deployed.
+export const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:5001/api/v1'
+  : (window.__LEADPULSE_API_URL__ || 'https://YOUR_BACKEND_URL/api/v1');
+
 // ── Platform Badge HTML Generator ─────────────────────────────────────────────
 function getPlatformBadgeHTML(platform) {
   if (!platform) platform = 'LinkedIn';
@@ -58,6 +65,9 @@ class LeadPulseApp {
     this.renderResults();
     this.renderAnalytics();
     this.updateNavCounts();
+    
+    // Hydrate with real data from backend
+    this.fetchLeadsFromBackend();
   }
 
   // ── Data Management ─────────────────────────────────────────────────────────
@@ -1044,9 +1054,7 @@ class LeadPulseApp {
     if (this.isScanRunning) return;
     this.isScanRunning = true;
 
-    const platformEl = document.getElementById('scraper-platform-select');
     const keywordsEl = document.getElementById('scraper-keywords-input');
-    const platform = platformEl?.value || 'LinkedIn';
     const keywords = keywordsEl?.value || '';
 
     const progressWrap = document.getElementById('scraper-progress-wrap');
@@ -1060,23 +1068,65 @@ class LeadPulseApp {
     if (runBtn) { runBtn.disabled = true; runBtn.textContent = 'Scanning...'; }
     if (resultMsg) resultMsg.textContent = '';
 
-    this.showToast('info', `Initiating ${platform} scan for "${keywords || 'decision makers'}"...`);
+    this.showToast('info', `Initiating Targeted Scan for "${keywords || 'decision makers'}"...`);
 
     try {
-      const newLeads = await ScraperEngine.scan(platform, { keywords }, (stage, pct, msg) => {
-        if (stageLabel) stageLabel.textContent = msg;
-        if (pctLabel) pctLabel.textContent = `${pct}%`;
-        if (fillBar) fillBar.style.width = `${pct}%`;
+      if (stageLabel) stageLabel.textContent = 'Queueing job...';
+      if (pctLabel) pctLabel.textContent = `10%`;
+      if (fillBar) fillBar.style.width = `10%`;
+
+      // 1. Trigger the scan on the backend
+      const response = await fetch(`${API_BASE_URL}/leads/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: "test-user-001",
+          jobTitle: keywords, // Using keywords as jobTitle
+          maxResults: 5
+        })
       });
 
-      const addedCount = this.addLeads(newLeads);
-      this.buildSidebarFilters();
-      this.renderResults();
-      this.renderAnalytics();
-      this.updateNavCounts();
+      if (!response.ok) {
+        throw new Error(`Failed to start scan: ${response.status}`);
+      }
+      
+      if (stageLabel) stageLabel.textContent = 'Enriching profiles & discovering emails...';
+      if (pctLabel) pctLabel.textContent = `40%`;
+      if (fillBar) fillBar.style.width = `40%`;
 
-      if (resultMsg) resultMsg.textContent = `✓ ${addedCount} new prospects added to your database.`;
-      this.showToast('success', `🎯 ${addedCount} new verified leads imported from ${platform}!`);
+      // 2. Poll dynamically for results until worker inserts them
+      const initialCount = this.leads.length;
+      let leadsFound = false;
+      const startTime = Date.now();
+      const maxPollingMs = 25000;
+
+      while (Date.now() - startTime < maxPollingMs) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const elapsed = Date.now() - startTime;
+        const currentPct = Math.min(92, 40 + Math.floor((elapsed / maxPollingMs) * 52));
+        if (pctLabel) pctLabel.textContent = `${currentPct}%`;
+        if (fillBar) fillBar.style.width = `${currentPct}%`;
+        if (stageLabel) stageLabel.textContent = `Verifying emails (${Math.round(elapsed / 1000)}s)...`;
+
+        const count = await this.fetchLeadsFromBackend();
+        if (count > initialCount) {
+          leadsFound = true;
+          break;
+        }
+      }
+
+      // Final refresh check
+      if (!leadsFound) {
+        await this.fetchLeadsFromBackend();
+      }
+
+      if (stageLabel) stageLabel.textContent = 'Done!';
+      if (pctLabel) pctLabel.textContent = `100%`;
+      if (fillBar) fillBar.style.width = `100%`;
+
+      if (resultMsg) resultMsg.textContent = `✓ Scan completed. Dashboard updated.`;
+      this.showToast('success', `🎯 Scan finished and leads refreshed!`);
     } catch (err) {
       console.error('Scraper error:', err);
       if (resultMsg) resultMsg.textContent = '⚠ Scan encountered an issue. Please try again.';
@@ -1084,6 +1134,57 @@ class LeadPulseApp {
     } finally {
       this.isScanRunning = false;
       if (runBtn) { runBtn.disabled = false; runBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Targeted Scan'; }
+    }
+  }
+
+  async fetchLeadsFromBackend() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/leads?userId=test-user-001&limit=50`);
+      if (!response.ok) throw new Error('Failed to fetch leads');
+      const data = await response.json();
+      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+        // Map backend leads to UI leads format (merging any missing fields to avoid breaking UI)
+        const newLeads = data.data.map(lead => ({
+            id: lead.id,
+            name: lead.name,
+            title: lead.jobTitle || 'Executive Lead',
+            jobTitle: lead.jobTitle || 'Executive Lead',
+            company: lead.company,
+            domain: lead.domain || `${lead.company.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+            email: lead.email || 'N/A',
+            emailStatus: lead.verificationStatus === 'VERIFIED' ? 'Verified' : 'Unverified',
+            linkedin: lead.linkedinUrl,
+            linkedinUrl: lead.linkedinUrl,
+            location: 'San Francisco, US',
+            industry: 'B2B SaaS',
+            companySize: '51-200',
+            sourcePlatform: 'LinkedIn',
+            intentCategory: 'High Intent',
+            intentSignal: 'Actively scaling revenue and enterprise operations',
+            scoreTier: 'high',
+            avatarBg: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+            pipelineStage: 'discovered',
+            aiScore: 88 + Math.floor(Math.random() * 10),
+            emailDeliverability: lead.verificationStatus === 'VERIFIED' ? 100 : 70
+        }));
+        
+        // Merge backend leads with any existing leads
+        const existingIds = new Set(newLeads.map(l => l.id));
+        const filteredOld = this.leads.filter(l => !existingIds.has(l.id));
+        this.leads = [...newLeads, ...filteredOld];
+        this.saveLeads();
+        this.filterEngine.setLeads(this.leads);
+        
+        this.buildSidebarFilters();
+        this.renderResults();
+        this.renderAnalytics();
+        this.updateNavCounts();
+      }
+      return this.leads.length;
+    } catch (err) {
+      console.error('Error fetching leads:', err);
+      this.showToast('error', 'Failed to fetch leads from server.');
+      return this.leads.length;
     }
   }
 

@@ -1,6 +1,8 @@
 import { createApp } from './app';
 import { env } from './config/env';
 import { connectDB, disconnectDB } from './config/db';
+import './config/redis'; // initialise Upstash Redis + BullMQ connection
+import './queues/leadQueue'; // boot the BullMQ Worker (starts listening for jobs)
 
 async function bootstrap() {
   const app = createApp();
@@ -14,6 +16,7 @@ async function bootstrap() {
     console.log(`📡 Environment: ${env.NODE_ENV}`);
     console.log(`🔗 API Base:    http://localhost:${env.PORT}${env.API_PREFIX}`);
     console.log(`🩺 Healthcheck: http://localhost:${env.PORT}${env.API_PREFIX}/health`);
+    console.log(`🌐 CORS Origins: ${env.CORS_ORIGINS.join(', ')} (*.vercel.app)`);
     console.log('====================================================');
   });
 

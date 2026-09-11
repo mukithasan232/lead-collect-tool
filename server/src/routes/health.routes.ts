@@ -10,8 +10,8 @@ healthRouter.get('/', async (_req: Request, res: Response) => {
 
   try {
     const start = Date.now();
-    // Run native MongoDB ping command
-    await prisma.$runCommandRaw({ ping: 1 });
+    // PostgreSQL-compatible liveness check
+    await prisma.$queryRaw`SELECT 1`;
     dbLatencyMs = Date.now() - start;
     dbStatus = 'connected';
   } catch {
@@ -28,7 +28,7 @@ healthRouter.get('/', async (_req: Request, res: Response) => {
       database: {
         status: dbStatus,
         latencyMs: dbLatencyMs,
-        type: 'MongoDB Atlas',
+        type: 'PostgreSQL',
       },
     },
   };

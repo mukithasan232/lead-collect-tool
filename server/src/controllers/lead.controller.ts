@@ -1,65 +1,57 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { EmailVerificationStatus } from '@prisma/client';
 import { prisma } from '../config/db';
 import { ApiResponse } from '../utils/apiResponse';
 import { AppError } from '../utils/appError';
-import { EmailStatus } from '../types';
-import { objectIdSchema } from '../utils/validation';
+import { leadQueue, QUEUE_NAME } from '../queues/leadQueue';
 
 const createLeadSchema = z.object({
-  firstName: z.string().max(100).optional(),
-  lastName: z.string().max(100).optional(),
+  userId: z.string().cuid('Invalid userId'),
+  name: z.string().min(1, 'Name is required').max(255),
+  jobTitle: z.string().max(255).optional(),
   company: z.string().min(1, 'Company name is required').max(255),
-  domain: z.string().max(255).optional(),
-  title: z.string().max(255).optional(),
+  email: z.string().email().optional(),
+  verificationStatus: z.nativeEnum(EmailVerificationStatus).optional(),
   sourcePlatform: z.string().max(100).optional(),
   linkedinUrl: z.string().url().max(500).optional().or(z.literal('')),
-  listId: objectIdSchema,
-  // Optional initial email record
-  email: z.string().email().optional(),
-  emailStatus: z.nativeEnum(EmailStatus).optional(),
-  smtpScore: z.number().min(0).max(100).optional(),
+  domain: z.string().max(255).optional(),
 });
 
 const updateLeadSchema = z.object({
-  firstName: z.string().max(100).optional(),
-  lastName: z.string().max(100).optional(),
+  name: z.string().min(1).max(255).optional(),
+  jobTitle: z.string().max(255).optional(),
   company: z.string().min(1).max(255).optional(),
-  domain: z.string().max(255).optional(),
-  title: z.string().max(255).optional(),
+  email: z.string().email().optional(),
+  verificationStatus: z.nativeEnum(EmailVerificationStatus).optional(),
   sourcePlatform: z.string().max(100).optional(),
   linkedinUrl: z.string().url().max(500).optional().or(z.literal('')),
-  listId: objectIdSchema.optional(),
+  domain: z.string().max(255).optional(),
 });
 
 export class LeadController {
   static async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { listId, q, domain, page = '1', limit = '25' } = req.query;
+      const { userId, q, company, verificationStatus, page = '1', limit = '25' } = req.query;
 
       const pageNumber = Math.max(1, parseInt(String(page), 10) || 1);
       const pageSize = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 25));
       const skip = (pageNumber - 1) * pageSize;
 
-      // Construct where clause
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const where: any = {};
 
-      if (listId) {
-        where.listId = String(listId);
-      }
-
-      if (domain) {
-        where.domain = { contains: String(domain), mode: 'insensitive' };
-      }
+      if (userId) where.userId = String(userId);
+      if (company) where.company = { contains: String(company), mode: 'insensitive' };
+      if (verificationStatus) where.verificationStatus = String(verificationStatus);
 
       if (q) {
         const queryStr = String(q);
         where.OR = [
-          { firstName: { contains: queryStr, mode: 'insensitive' } },
-          { lastName: { contains: queryStr, mode: 'insensitive' } },
+          { name: { contains: queryStr, mode: 'insensitive' } },
           { company: { contains: queryStr, mode: 'insensitive' } },
-          { title: { contains: queryStr, mode: 'insensitive' } },
+          { jobTitle: { contains: queryStr, mode: 'insensitive' } },
+          { email: { contains: queryStr, mode: 'insensitive' } },
           { domain: { contains: queryStr, mode: 'insensitive' } },
         ];
       }
@@ -71,9 +63,6 @@ export class LeadController {
           skip,
           take: pageSize,
           orderBy: { createdAt: 'desc' },
-          include: {
-            emailRecords: true,
-          },
         }),
       ]);
 
@@ -97,12 +86,7 @@ export class LeadController {
       const { id } = req.params;
       const lead = await prisma.lead.findUnique({
         where: { id },
-        include: {
-          list: {
-            select: { id: true, name: true, workspaceId: true },
-          },
-          emailRecords: true,
-        },
+        include: { user: { select: { id: true, email: true, credits: true } } },
       });
 
       if (!lead) {
@@ -121,26 +105,9 @@ export class LeadController {
   static async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const validated = createLeadSchema.parse(req.body);
-      const { email, emailStatus, smtpScore, ...leadData } = validated;
 
       const lead = await prisma.lead.create({
-        data: {
-          ...leadData,
-          ...(email
-            ? {
-                emailRecords: {
-                  create: {
-                    emailAddress: email,
-                    status: emailStatus || EmailStatus.UNVERIFIED,
-                    smtpScore: smtpScore ?? 0.0,
-                  },
-                },
-              }
-            : {}),
-        },
-        include: {
-          emailRecords: true,
-        },
+        data: validated,
       });
 
       ApiResponse.created(res, {
@@ -160,9 +127,6 @@ export class LeadController {
       const lead = await prisma.lead.update({
         where: { id },
         data,
-        include: {
-          emailRecords: true,
-        },
       });
 
       ApiResponse.success(res, {
@@ -178,8 +142,45 @@ export class LeadController {
     try {
       const { id } = req.params;
       await prisma.lead.delete({ where: { id } });
-
       ApiResponse.noContent(res);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/leads/scan
+   * Accepts search criteria, enqueues a BullMQ lead-enrichment job,
+   * and returns 202 Accepted with the job ID immediately.
+   * The actual processing happens asynchronously in the Worker.
+   */
+  static async runTargetedScan(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const scanSchema = z.object({
+        userId: z.string().min(1, 'userId is required'),
+        jobTitle: z.string().max(255).optional(),
+        location: z.string().max(255).optional(),
+        industry: z.string().max(255).optional(),
+        keywords: z.array(z.string()).max(20).optional(),
+        maxResults: z.number().int().min(1).max(50).optional().default(10),
+      });
+
+      const payload = scanSchema.parse(req.body);
+
+      const job = await leadQueue.add('scan', payload, {
+        jobId: `scan-${payload.userId}-${Date.now()}`,
+      });
+
+      res.status(202).json({
+        success: true,
+        message: 'Lead scan job accepted and queued for processing.',
+        data: {
+          jobId: job.id,
+          queueName: QUEUE_NAME,
+          status: 'queued',
+          payload,
+        },
+      });
     } catch (err) {
       next(err);
     }

@@ -1,4 +1,4 @@
-// Prisma Schema for LeadPulse AI Lead Generation Platform (MongoDB Atlas)
+// Prisma Schema for LeadPulse AI Lead Generation Platform (PostgreSQL)
 // Documentation: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -6,110 +6,60 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // -------------------------------------------------------------
 // Enums
 // -------------------------------------------------------------
 
-enum EmailStatus {
+enum EmailVerificationStatus {
+  UNVERIFIED
   VERIFIED
   CATCH_ALL
   INVALID
-  UNVERIFIED
 }
 
 // -------------------------------------------------------------
 // Models
 // -------------------------------------------------------------
 
-/// Multi-tenant workspace partitioning users, lead lists, and prospecting data
-model Workspace {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  name      String
+/// A user account with credit-based access to lead generation features
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  credits   Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  users     User[]
-  leadLists LeadList[]
+  leads     Lead[]
 
-  @@map("workspaces")
-}
-
-/// Team members belonging to an isolated workspace
-model User {
-  id           String    @id @default(auto()) @map("_id") @db.ObjectId
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  workspaceId  String    @map("workspace_id") @db.ObjectId
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@index([workspaceId])
   @@map("users")
 }
 
-/// Named prospect lists organized under a workspace
-model LeadList {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  name        String
-  workspaceId String    @map("workspace_id") @db.ObjectId
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  leads       Lead[]
-
-  @@index([workspaceId])
-  @@map("lead_lists")
-}
-
-/// Individual prospect contact record
+/// An individual B2B prospect contact record
 model Lead {
-  id             String        @id @default(auto()) @map("_id") @db.ObjectId
-  firstName      String?       @map("first_name")
-  lastName       String?       @map("last_name")
-  company        String
-  domain         String?
-  title          String?
-  sourcePlatform String?       @map("source_platform")
-  linkedinUrl    String?       @map("linkedin_url")
-  listId         String        @map("list_id") @db.ObjectId
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  id                 String                  @id @default(cuid())
+  userId             String                  @map("user_id")
+  name               String
+  jobTitle           String?                 @map("job_title")
+  company            String
+  email              String?
+  verificationStatus EmailVerificationStatus @default(UNVERIFIED) @map("verification_status")
+  sourcePlatform     String?                 @map("source_platform")
+  linkedinUrl        String?                 @map("linkedin_url")
+  domain             String?
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
 
   // Relations
-  list           LeadList      @relation(fields: [listId], references: [id], onDelete: Cascade)
-  emailRecords   EmailRecord[]
+  user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([listId])
-  @@index([domain])
+  @@index([userId])
   @@index([company])
+  @@index([verificationStatus])
   @@map("leads")
-}
-
-/// Email deliverability & SMTP verification record
-model EmailRecord {
-  id           String      @id @default(auto()) @map("_id") @db.ObjectId
-  leadId       String      @map("lead_id") @db.ObjectId
-  emailAddress String      @map("email_address")
-  status       EmailStatus @default(UNVERIFIED)
-  smtpScore    Float       @default(0.0) @map("smtp_score")
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
-
-  // Relations
-  lead         Lead        @relation(fields: [leadId], references: [id], onDelete: Cascade)
-
-  @@index([leadId])
-  @@index([emailAddress])
-  @@index([status])
-  @@map("email_records")
 }

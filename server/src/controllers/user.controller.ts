@@ -4,32 +4,27 @@ import { prisma } from '../config/db';
 import { ApiResponse } from '../utils/apiResponse';
 import { AppError } from '../utils/appError';
 
-import { objectIdSchema } from '../utils/validation';
-
 const createUserSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  workspaceId: objectIdSchema,
+  credits: z.number().int().min(0).optional().default(0),
 });
 
 const updateUserSchema = z.object({
   email: z.string().email().optional(),
-  password: z.string().min(6).optional(),
+  credits: z.number().int().min(0).optional(),
 });
 
 export class UserController {
-  static async list(req: Request, res: Response, next: NextFunction): Promise<void> {
+  static async list(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { workspaceId } = req.query;
-
       const users = await prisma.user.findMany({
-        where: workspaceId ? { workspaceId: String(workspaceId) } : undefined,
         select: {
           id: true,
           email: true,
-          workspaceId: true,
+          credits: true,
           createdAt: true,
           updatedAt: true,
+          _count: { select: { leads: true } },
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -51,12 +46,10 @@ export class UserController {
         select: {
           id: true,
           email: true,
-          workspaceId: true,
+          credits: true,
           createdAt: true,
           updatedAt: true,
-          workspace: {
-            select: { id: true, name: true },
-          },
+          _count: { select: { leads: true } },
         },
       });
 
@@ -75,21 +68,14 @@ export class UserController {
 
   static async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { email, password, workspaceId } = createUserSchema.parse(req.body);
-
-      // Simple hash placeholder - in real auth, use bcrypt or argon2
-      const passwordHash = Buffer.from(password).toString('base64');
+      const { email, credits } = createUserSchema.parse(req.body);
 
       const user = await prisma.user.create({
-        data: {
-          email,
-          passwordHash,
-          workspaceId,
-        },
+        data: { email, credits },
         select: {
           id: true,
           email: true,
-          workspaceId: true,
+          credits: true,
           createdAt: true,
         },
       });
@@ -108,17 +94,13 @@ export class UserController {
       const { id } = req.params;
       const data = updateUserSchema.parse(req.body);
 
-      const updateData: { email?: string; passwordHash?: string } = {};
-      if (data.email) updateData.email = data.email;
-      if (data.password) updateData.passwordHash = Buffer.from(data.password).toString('base64');
-
       const user = await prisma.user.update({
         where: { id },
-        data: updateData,
+        data,
         select: {
           id: true,
           email: true,
-          workspaceId: true,
+          credits: true,
           updatedAt: true,
         },
       });
@@ -136,7 +118,6 @@ export class UserController {
     try {
       const { id } = req.params;
       await prisma.user.delete({ where: { id } });
-
       ApiResponse.noContent(res);
     } catch (err) {
       next(err);

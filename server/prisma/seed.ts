@@ -1,99 +1,63 @@
-import { PrismaClient } from '@prisma/client';
-import { EmailStatus } from '../src/types';
+import { PrismaClient, EmailVerificationStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('🌱 Starting LeadPulse database seeding...');
 
-  // 1. Create Default Workspace
-  const workspace = await prisma.workspace.create({
-    data: {
-      name: 'Acme Enterprise Sales',
+  // 1. Create a demo user
+  const user = await prisma.user.upsert({
+    where: { email: 'demo@leadpulse.ai' },
+    update: {},
+    create: {
+      email: 'demo@leadpulse.ai',
+      credits: 100,
     },
   });
-  console.log(`✓ Created Workspace: ${workspace.name} (${workspace.id})`);
+  console.log(`✓ Created User: ${user.email} — ${user.credits} credits`);
 
-  // 2. Create Initial Admin User
-  const user = await prisma.user.create({
-    data: {
-      email: 'alex.chen@acme.corp',
-      passwordHash: '$2b$12$e8wF3QvUvC6y5y7g9w.4yeu205cE3u1W2/8Z6Z3x3iLwK.zP5t8u6', // placeholder hash
-      workspaceId: workspace.id,
-    },
-  });
-  console.log(`✓ Created User: ${user.email}`);
-
-  // 3. Create Lead List
-  const leadList = await prisma.leadList.create({
-    data: {
-      name: 'High-Growth AI & SaaS Founders Q1',
-      workspaceId: workspace.id,
-    },
-  });
-  console.log(`✓ Created Lead List: ${leadList.name}`);
-
-  // 4. Create Sample Leads & Email Records
+  // 2. Create sample leads attached to that user
   const sampleLeads = [
     {
-      firstName: 'Sarah',
-      lastName: 'Jenkins',
+      name: 'Sarah Jenkins',
+      jobTitle: 'Founder & CEO',
       company: 'Synthetix AI',
-      domain: 'synthetix.ai',
-      title: 'Founder & CEO',
+      email: 'sarah@synthetix.ai',
+      verificationStatus: EmailVerificationStatus.VERIFIED,
       sourcePlatform: 'linkedin',
       linkedinUrl: 'https://linkedin.com/in/sarah-jenkins-synthetix',
-      email: 'sarah@synthetix.ai',
-      status: EmailStatus.VERIFIED,
-      score: 98.5,
+      domain: 'synthetix.ai',
     },
     {
-      firstName: 'Marcus',
-      lastName: 'Vance',
+      name: 'Marcus Vance',
+      jobTitle: 'VP of Growth',
       company: 'CloudScale Data',
-      domain: 'cloudscale.io',
-      title: 'VP of Growth',
+      email: 'm.vance@cloudscale.io',
+      verificationStatus: EmailVerificationStatus.CATCH_ALL,
       sourcePlatform: 'apollo',
       linkedinUrl: 'https://linkedin.com/in/marcus-vance-cloudscale',
-      email: 'm.vance@cloudscale.io',
-      status: EmailStatus.CATCH_ALL,
-      score: 82.0,
+      domain: 'cloudscale.io',
     },
     {
-      firstName: 'Elena',
-      lastName: 'Rostova',
+      name: 'Elena Rostova',
+      jobTitle: 'Head of Engineering',
       company: 'ShieldSec Cyber',
-      domain: 'shieldsec.com',
-      title: 'Head of Engineering',
+      email: 'elena@shieldsec.com',
+      verificationStatus: EmailVerificationStatus.VERIFIED,
       sourcePlatform: 'manual',
       linkedinUrl: 'https://linkedin.com/in/elena-rostova-shieldsec',
-      email: 'elena@shieldsec.com',
-      status: EmailStatus.VERIFIED,
-      score: 96.0,
+      domain: 'shieldsec.com',
     },
   ];
 
-  for (const item of sampleLeads) {
-    const lead = await prisma.lead.create({
+  for (const lead of sampleLeads) {
+    const created = await prisma.lead.create({
       data: {
-        firstName: item.firstName,
-        lastName: item.lastName,
-        company: item.company,
-        domain: item.domain,
-        title: item.title,
-        sourcePlatform: item.sourcePlatform,
-        linkedinUrl: item.linkedinUrl,
-        listId: leadList.id,
-        emailRecords: {
-          create: {
-            emailAddress: item.email,
-            status: item.status,
-            smtpScore: item.score,
-          },
-        },
+        userId: user.id,
+        ...lead,
       },
     });
-    console.log(`✓ Created Lead: ${lead.firstName} ${lead.lastName} (${lead.company})`);
+    console.log(`✓ Created Lead: ${created.name} — ${created.company}`);
   }
 
   console.log('✅ Database seeding complete.');
