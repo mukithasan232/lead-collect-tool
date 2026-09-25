@@ -5,6 +5,38 @@
 
 export class ExportUtils {
   /**
+   * Export an array of leads to a simplified CSV file download for the client demo.
+   * @param {object[]} leadsArray
+   */
+  static exportLeadsToCSV(leadsArray) {
+    const headers = [
+      "Name", "Job Title", "Company", "Email", "Verification Status", "Domain", "LinkedIn Profile"
+    ];
+
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return "";
+      const str = String(val);
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = leadsArray.map(lead => [
+      lead.name,
+      lead.title || lead.jobTitle || "",
+      lead.company,
+      lead.email,
+      lead.emailStatus || lead.verificationStatus || "Unverified",
+      lead.domain,
+      lead.linkedin || lead.linkedinUrl || ""
+    ].map(escapeCSV).join(","));
+
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    this._downloadFile(csvContent, "LeadPulse_Verified_Leads.csv", "text/csv;charset=utf-8;");
+  }
+
+  /**
    * Export an array of leads to a CSV file download.
    * @param {object[]} leads
    * @param {string} filename

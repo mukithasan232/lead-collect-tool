@@ -1370,9 +1370,8 @@ class LeadPulseApp {
     });
 
     document.getElementById('export-csv-btn')?.addEventListener('click', () => {
-      const filtered = this.filterEngine.getFilteredLeads();
-      ExportUtils.exportToCSV(filtered, `leadpulse_export_${Date.now()}.csv`);
-      this.showToast('success', `Exporting ${filtered.length} leads as CSV...`);
+      ExportUtils.exportLeadsToCSV(this.leads);
+      this.showToast('success', `Exporting ${this.leads.length} leads as CSV...`);
     });
 
     // Header scan button (radar sweep)
