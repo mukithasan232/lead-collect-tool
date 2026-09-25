@@ -54,6 +54,10 @@ class LeadPulseApp {
     this.outreachVariant = 0;
     this.isScanRunning = false;
 
+    // ── Pagination state ────────────────────────────────────────────
+    this.currentPage = 1;
+    this.pageSize    = 100; // matches the select default
+
     this.init();
   }
 
@@ -62,10 +66,11 @@ class LeadPulseApp {
     this.filterEngine = new FilterEngine(this.leads);
     this.buildSidebarFilters();
     this.bindEvents();
+    this.bindPagination();
     this.renderResults();
     this.renderAnalytics();
     this.updateNavCounts();
-    
+
     // Hydrate with real data from backend
     this.fetchLeadsFromBackend();
   }
@@ -221,18 +226,126 @@ class LeadPulseApp {
   // ── Render Results ──────────────────────────────────────────────────────────
 
   renderResults() {
-    const filtered = this.filterEngine.getFilteredLeads();
+    const allFiltered = this.filterEngine.getFilteredLeads();
+    const total       = allFiltered.length;
+
+    // Reset to page 1 whenever filters change total count
+    const totalPages  = Math.max(1, Math.ceil(total / this.pageSize));
+    if (this.currentPage > totalPages) this.currentPage = 1;
+
+    const start   = (this.currentPage - 1) * this.pageSize;
+    const end     = Math.min(start + this.pageSize, total);
+    const paged   = allFiltered.slice(start, end);
+
     const countEl = document.getElementById('results-count');
-    if (countEl) countEl.textContent = filtered.length;
+    if (countEl) countEl.textContent = total;
 
     if (this.currentView === 'grid') {
-      this.renderGrid(filtered);
+      this.renderGrid(paged);
     } else {
-      this.renderTable(filtered);
+      this.renderTable(paged);
+    }
+
+    this.updatePaginationBar(total, start, end, totalPages);
+  }
+
+  // ── Pagination Helpers ───────────────────────────────────────────────────────
+
+  updatePaginationBar(total, start, end, totalPages) {
+    const fromEl  = document.getElementById('pg-from');
+    const toEl    = document.getElementById('pg-to');
+    const totalEl = document.getElementById('pg-total');
+    const prevBtn = document.getElementById('pg-prev');
+    const nextBtn = document.getElementById('pg-next');
+    const firstBtn= document.getElementById('pg-first');
+    const lastBtn = document.getElementById('pg-last');
+    const numsEl  = document.getElementById('pg-numbers');
+
+    if (!fromEl) return; // pagination bar not in DOM yet
+
+    fromEl.textContent  = total === 0 ? 0 : start + 1;
+    toEl.textContent    = end;
+    totalEl.textContent = total;
+
+    const isFirst = this.currentPage === 1;
+    const isLast  = this.currentPage >= totalPages;
+
+    if (firstBtn) firstBtn.disabled = isFirst;
+    if (prevBtn)  prevBtn.disabled  = isFirst;
+    if (nextBtn)  nextBtn.disabled  = isLast;
+    if (lastBtn)  lastBtn.disabled  = isLast;
+
+    // Render page number buttons (show at most 7 pages with ellipsis)
+    if (numsEl) {
+      numsEl.innerHTML = '';
+      const pages = this._buildPageRange(this.currentPage, totalPages);
+      pages.forEach(p => {
+        if (p === '...') {
+          const ellipsis = document.createElement('span');
+          ellipsis.textContent = '…';
+          ellipsis.style.cssText = 'display:inline-flex;align-items:center;padding:0 0.25rem;color:var(--text-muted);font-size:0.82rem;';
+          numsEl.appendChild(ellipsis);
+        } else {
+          const btn = document.createElement('button');
+          btn.textContent = p;
+          btn.className = `btn btn-sm ${p === this.currentPage ? 'btn-primary' : 'btn-secondary'}`;
+          btn.style.cssText = 'min-width:32px; padding:0.35rem 0.45rem; font-size:0.8rem;';
+          btn.disabled = p === this.currentPage;
+          btn.addEventListener('click', () => {
+            this.currentPage = p;
+            this.renderResults();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          });
+          numsEl.appendChild(btn);
+        }
+      });
     }
   }
 
+  _buildPageRange(current, total) {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    if (current <= 4) return [1, 2, 3, 4, 5, '...', total];
+    if (current >= total - 3) return [1, '...', total-4, total-3, total-2, total-1, total];
+    return [1, '...', current - 1, current, current + 1, '...', total];
+  }
+
+  bindPagination() {
+    const prevBtn  = document.getElementById('pg-prev');
+    const nextBtn  = document.getElementById('pg-next');
+    const firstBtn = document.getElementById('pg-first');
+    const lastBtn  = document.getElementById('pg-last');
+    const sizeEl   = document.getElementById('pg-size-select');
+
+    firstBtn?.addEventListener('click', () => {
+      this.currentPage = 1;
+      this.renderResults();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    prevBtn?.addEventListener('click', () => {
+      if (this.currentPage > 1) { this.currentPage--; this.renderResults(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    });
+    nextBtn?.addEventListener('click', () => {
+      const total = this.filterEngine.getFilteredLeads().length;
+      const totalPages = Math.ceil(total / this.pageSize);
+      if (this.currentPage < totalPages) { this.currentPage++; this.renderResults(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    });
+    lastBtn?.addEventListener('click', () => {
+      const total = this.filterEngine.getFilteredLeads().length;
+      this.currentPage = Math.max(1, Math.ceil(total / this.pageSize));
+      this.renderResults();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    sizeEl?.addEventListener('change', () => {
+      this.pageSize    = parseInt(sizeEl.value, 10);
+      this.currentPage = 1;
+      this.renderResults();
+    });
+  }
+
+  // ── Render Grid ─────────────────────────────────────────────────────────────
+
   renderGrid(leads) {
+
     const grid = document.getElementById('leads-grid');
     if (!grid) return;
 
@@ -1280,6 +1393,7 @@ class LeadPulseApp {
       searchInput.addEventListener('input', (e) => {
         const val = e.target.value;
         this.filterEngine.setQuery(val);
+        this.currentPage = 1; // reset to page 1 on new search
         this.renderResults();
         const clearBtn = document.getElementById('search-clear-btn');
         if (clearBtn) clearBtn.style.display = val ? 'flex' : 'none';
