@@ -86,11 +86,12 @@ export class LeadController {
 
       if (isDbError) {
         console.error('⚠️  DB unavailable — returning empty leads:', err.message);
-        return ApiResponse.success(res, {
+        ApiResponse.success(res, {
           message: 'Database temporarily unavailable. Showing cached data.',
           data: [],
           meta: { page: 1, limit: 25, total: 0, totalPages: 0, dbAvailable: false },
         });
+        return;
       }
       next(err);
     }
