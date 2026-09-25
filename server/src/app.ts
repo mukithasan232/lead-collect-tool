@@ -10,35 +10,22 @@ import { apiRouter } from './routes';
 const ALLOWED_ORIGINS = [
   'https://lead.codernest.cloud',
   'https://app.codernest.cloud',
-  'https://codernest.cloud',
   'http://localhost:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:3000',
-  ...env.CORS_ORIGINS,
 ];
 
 const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
-    // Allow requests with no origin (e.g., curl, Postman, server-to-server)
-    if (!origin) return callback(null, true);
-    // Allow any Vercel preview deploy URL
-    if (origin.endsWith('.vercel.app')) return callback(null, true);
-    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-    callback(new Error(`CORS blocked for origin: ${origin}`));
-  },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  origin: ALLOWED_ORIGINS,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   credentials: true,
-  optionsSuccessStatus: 204,
 };
 
 export function createApp(): Application {
   const app = express();
 
-  // ── CORS must be registered FIRST, before helmet or any other middleware ──
-  // Explicitly handle OPTIONS preflight for ALL routes
-  app.options('*', cors(corsOptions));
-  app.use(cors(corsOptions));
+  // ── CORS FIRST — before ALL middleware and routes ──────────────────────────
+  app.options('*', cors(corsOptions)); // Handle preflight for every route
+  app.use(cors(corsOptions));          // Apply CORS headers to all responses
 
   // Security headers (after CORS so CORS headers aren't overwritten)
   app.use(helmet({
