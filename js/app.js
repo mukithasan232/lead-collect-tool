@@ -4,7 +4,25 @@
  * Imports: FilterEngine, OutreachGenerator, ExportUtils, ScraperEngine, VerificationEngine
  */
 
-import { INITIAL_LEADS, SOURCE_PLATFORM_OPTIONS, INTENT_OPTIONS, EMAIL_STATUS_OPTIONS } from './mock-data.js';
+const SOURCE_PLATFORM_OPTIONS = [
+  { value: 'LinkedIn', label: 'LinkedIn', color: '#0A66C2' },
+  { value: 'ZoomInfo', label: 'ZoomInfo', color: '#1B1B1C' },
+  { value: 'Apollo', label: 'Apollo', color: '#14C5D4' },
+  { value: 'Custom', label: 'Custom Import', color: '#6B7280' }
+];
+
+const INTENT_OPTIONS = [
+  { value: 'High Intent', label: 'High Intent (Actively Scaling)' },
+  { value: 'Medium Intent', label: 'Medium Intent (Evaluating)' },
+  { value: 'Low Intent', label: 'Low Intent (Passive)' }
+];
+
+const EMAIL_STATUS_OPTIONS = [
+  { value: 'Verified', label: 'Verified & Safe to Send' },
+  { value: 'Catch-All', label: 'Catch-All (Moderate Risk)' },
+  { value: 'Unverified', label: 'Unverified / Unknown' },
+  { value: 'Bounced', label: 'Bounced / Invalid' }
+];
 import { FilterEngine } from './filter-engine.js';
 import { OutreachGenerator } from './ai-outreach.js';
 import { ExportUtils } from './export-utils.js';
@@ -78,28 +96,11 @@ class LeadPulseApp {
   // ── Data Management ─────────────────────────────────────────────────────────
 
   loadLeads() {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          this.leads = parsed;
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn('LocalStorage read error:', e);
-    }
-    this.leads = [...INITIAL_LEADS];
-    this.saveLeads();
+    this.leads = [];
   }
 
   saveLeads() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.leads));
-    } catch (e) {
-      console.warn('LocalStorage write error:', e);
-    }
+    // No-op. Data is handled by backend.
   }
 
   addLeads(newLeads) {
@@ -1260,16 +1261,11 @@ class LeadPulseApp {
       if (!response.ok) {
         const errText = await response.text().catch(() => '');
         console.error(`Fetch leads failed: HTTP ${response.status}`, errText);
-        // Don't show error toast for 500 DB issues — use cached leads silently
-        if (response.status >= 500) {
-          console.warn('Backend DB unavailable — displaying local/cached leads.');
-          return this.leads.length;
-        }
         throw new Error(`Server responded with ${response.status}`);
       }
 
       const data = await response.json();
-      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+      if (data.success && Array.isArray(data.data)) {
         // Map backend leads to UI leads format (merging any missing fields to avoid breaking UI)
         const newLeads = data.data.map(lead => ({
             id: lead.id,
@@ -1295,11 +1291,7 @@ class LeadPulseApp {
             emailDeliverability: lead.verificationStatus === 'VERIFIED' ? 100 : 70
         }));
 
-        // Merge backend leads with any existing leads
-        const existingIds = new Set(newLeads.map(l => l.id));
-        const filteredOld = this.leads.filter(l => !existingIds.has(l.id));
-        this.leads = [...newLeads, ...filteredOld];
-        this.saveLeads();
+        this.leads = newLeads;
         this.filterEngine.setLeads(this.leads);
 
         this.buildSidebarFilters();
@@ -1310,10 +1302,10 @@ class LeadPulseApp {
       return this.leads.length;
     } catch (err) {
       console.error('Error fetching leads from backend:', err);
-      // Only show toast for unexpected errors, not routine DB-unavailable cases
-      if (err.message && !err.message.includes('500')) {
-        this.showToast('error', 'Failed to sync leads from server.');
-      }
+      this.leads = [];
+      this.filterEngine.setLeads(this.leads);
+      this.renderResults();
+      this.showToast('error', 'Failed to sync leads from server.');
       return this.leads.length;
     }
   }
