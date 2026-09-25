@@ -4,24 +4,19 @@
  * Imports: FilterEngine, OutreachGenerator, ExportUtils, ScraperEngine, VerificationEngine
  */
 
-const SOURCE_PLATFORM_OPTIONS = [
-  { value: 'LinkedIn', label: 'LinkedIn', color: '#0A66C2' },
-  { value: 'ZoomInfo', label: 'ZoomInfo', color: '#1B1B1C' },
-  { value: 'Apollo', label: 'Apollo', color: '#14C5D4' },
-  { value: 'Custom', label: 'Custom Import', color: '#6B7280' }
-];
+const SOURCE_PLATFORM_OPTIONS = ['LinkedIn', 'Twitter', 'Upwork', 'Apollo', 'Custom Domain'];
 
 const INTENT_OPTIONS = [
-  { value: 'High Intent', label: 'High Intent (Actively Scaling)' },
-  { value: 'Medium Intent', label: 'Medium Intent (Evaluating)' },
-  { value: 'Low Intent', label: 'Low Intent (Passive)' }
+  { id: 'High Intent', label: 'High Intent (Actively Scaling)' },
+  { id: 'Medium Intent', label: 'Medium Intent (Evaluating)' },
+  { id: 'Low Intent', label: 'Low Intent (Passive)' }
 ];
 
 const EMAIL_STATUS_OPTIONS = [
-  { value: 'Verified', label: 'Verified & Safe to Send' },
-  { value: 'Catch-All', label: 'Catch-All (Moderate Risk)' },
-  { value: 'Unverified', label: 'Unverified / Unknown' },
-  { value: 'Bounced', label: 'Bounced / Invalid' }
+  { id: 'Verified', label: 'Verified & Safe to Send' },
+  { id: 'Catch-All', label: 'Catch-All (Moderate Risk)' },
+  { id: 'Unverified', label: 'Unverified / Unknown' },
+  { id: 'Bounced', label: 'Bounced / Invalid' }
 ];
 import { FilterEngine } from './filter-engine.js';
 import { OutreachGenerator } from './ai-outreach.js';
