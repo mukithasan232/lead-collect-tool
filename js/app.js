@@ -1142,8 +1142,19 @@ class LeadPulseApp {
 
   async fetchLeadsFromBackend() {
     try {
-      const response = await fetch(`${API_BASE_URL}/leads?userId=test-user-001&limit=50`);
-      if (!response.ok) throw new Error('Failed to fetch leads');
+      const response = await fetch(`${API_BASE_URL}/leads?limit=100`);
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        console.error(`Fetch leads failed: HTTP ${response.status}`, errText);
+        // Don't show error toast for 500 DB issues — use cached leads silently
+        if (response.status >= 500) {
+          console.warn('Backend DB unavailable — displaying local/cached leads.');
+          return this.leads.length;
+        }
+        throw new Error(`Server responded with ${response.status}`);
+      }
+
       const data = await response.json();
       if (data.success && Array.isArray(data.data) && data.data.length > 0) {
         // Map backend leads to UI leads format (merging any missing fields to avoid breaking UI)
@@ -1158,26 +1169,26 @@ class LeadPulseApp {
             emailStatus: lead.verificationStatus === 'VERIFIED' ? 'Verified' : 'Unverified',
             linkedin: lead.linkedinUrl,
             linkedinUrl: lead.linkedinUrl,
-            location: 'San Francisco, US',
-            industry: 'B2B SaaS',
-            companySize: '51-200',
-            sourcePlatform: 'LinkedIn',
-            intentCategory: 'High Intent',
-            intentSignal: 'Actively scaling revenue and enterprise operations',
-            scoreTier: 'high',
+            location: lead.location || 'San Francisco, US',
+            industry: lead.industry || 'B2B SaaS',
+            companySize: lead.companySize || '51-200',
+            sourcePlatform: lead.sourcePlatform || 'LinkedIn',
+            intentCategory: lead.intentCategory || 'High Intent',
+            intentSignal: lead.intentSignal || 'Actively scaling revenue and enterprise operations',
+            scoreTier: lead.aiScore >= 90 ? 'high' : lead.aiScore >= 75 ? 'medium' : 'low',
             avatarBg: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
-            pipelineStage: 'discovered',
-            aiScore: 88 + Math.floor(Math.random() * 10),
+            pipelineStage: lead.pipelineStage || 'discovered',
+            aiScore: lead.aiScore || (88 + Math.floor(Math.random() * 10)),
             emailDeliverability: lead.verificationStatus === 'VERIFIED' ? 100 : 70
         }));
-        
+
         // Merge backend leads with any existing leads
         const existingIds = new Set(newLeads.map(l => l.id));
         const filteredOld = this.leads.filter(l => !existingIds.has(l.id));
         this.leads = [...newLeads, ...filteredOld];
         this.saveLeads();
         this.filterEngine.setLeads(this.leads);
-        
+
         this.buildSidebarFilters();
         this.renderResults();
         this.renderAnalytics();
@@ -1185,8 +1196,11 @@ class LeadPulseApp {
       }
       return this.leads.length;
     } catch (err) {
-      console.error('Error fetching leads:', err);
-      this.showToast('error', 'Failed to fetch leads from server.');
+      console.error('Error fetching leads from backend:', err);
+      // Only show toast for unexpected errors, not routine DB-unavailable cases
+      if (err.message && !err.message.includes('500')) {
+        this.showToast('error', 'Failed to sync leads from server.');
+      }
       return this.leads.length;
     }
   }

@@ -41,7 +41,10 @@ export class LeadController {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const where: any = {};
 
-      if (userId) where.userId = String(userId);
+      // Only filter by userId if it looks like a real CUID (not a placeholder)
+      if (userId && String(userId).startsWith('c') && String(userId).length > 10) {
+        where.userId = String(userId);
+      }
       if (company) where.company = { contains: String(company), mode: 'insensitive' };
       if (verificationStatus) where.verificationStatus = String(verificationStatus);
 
@@ -76,7 +79,19 @@ export class LeadController {
           totalPages: Math.ceil(total / pageSize),
         },
       });
-    } catch (err) {
+    } catch (err: any) {
+      // If DB is unavailable, return empty leads gracefully instead of crashing
+      const isDbError = err?.code === 'P1001' || err?.code === 'P1012' || err?.code === 'P2024'
+        || err?.message?.includes('connect') || err?.message?.includes('datasource');
+
+      if (isDbError) {
+        console.error('⚠️  DB unavailable — returning empty leads:', err.message);
+        return ApiResponse.success(res, {
+          message: 'Database temporarily unavailable. Showing cached data.',
+          data: [],
+          meta: { page: 1, limit: 25, total: 0, totalPages: 0, dbAvailable: false },
+        });
+      }
       next(err);
     }
   }
