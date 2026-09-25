@@ -13,30 +13,14 @@ export function createApp(): Application {
   // Security headers
   app.use(helmet());
 
-  // CORS configuration — supports local dev, Vercel deployments (*.vercel.app), and production custom domains
+  // CORS configuration — strictly allows production frontend domains and handles OPTIONS
   app.use(
     cors({
-      origin: (origin, callback) => {
-        // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
-        if (!origin) return callback(null, true);
-
-        // Check configured whitelist
-        if (env.CORS_ORIGINS.includes(origin) || env.CORS_ORIGINS.includes('*')) {
-          return callback(null, true);
-        }
-
-        // Allow any Vercel deployment preview or production domain (*.vercel.app)
-        // or Codernest domain (*.codernest.cloud)
-        if (
-          /^https:\/\/([a-z0-9-]+\.)?vercel\.app$/.test(origin) ||
-          /^https:\/\/([a-z0-9-]+\.)?codernest\.cloud$/.test(origin)
-        ) {
-          return callback(null, true);
-        }
-
-        return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
-      },
+      origin: ['https://lead.codernest.cloud', 'https://app.codernest.cloud'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
       credentials: true,
+      optionsSuccessStatus: 200,
     })
   );
 

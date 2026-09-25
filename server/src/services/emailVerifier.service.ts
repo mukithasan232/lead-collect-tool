@@ -57,9 +57,9 @@ export const emailVerifierService = {
   /**
    * Runs single email validation with an execution timeout to prevent slow SMTP servers from stalling.
    */
-  async validateSingleEmail(email: string, timeoutMs = 2500): Promise<{ valid: boolean; isCatchAll?: boolean }> {
+  async validateSingleEmail(email: string, timeoutMs = 3500): Promise<{ valid: boolean; isCatchAll?: boolean }> {
     const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Validation timeout')), timeoutMs)
+      setTimeout(() => reject(new Error('SMTP Validation timeout')), timeoutMs)
     );
 
     try {
@@ -154,7 +154,7 @@ export const emailVerifierService = {
         return verified;
       }
 
-      console.log(`   ℹ️ [EmailVerifier] Completed checks for ${domain}. Saving candidate as UNVERIFIED.`);
+      console.log(`   ℹ️ [EmailVerifier] Timeout/completion for ${domain}. Saving candidate as UNVERIFIED.`);
       return {
         email: permutations[0] || fallbackEmail,
         status: 'UNVERIFIED',

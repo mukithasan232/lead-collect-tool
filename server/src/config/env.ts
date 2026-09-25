@@ -4,6 +4,14 @@ import path from 'path';
 // Load environment variables from .env file
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+const requiredEnv = ['NUBELA_API_KEY', 'DATABASE_URL', 'REDIS_URL'];
+for (const req of requiredEnv) {
+  if (!process.env[req]) {
+    console.error(`💥 Missing required environment variable: ${req}`);
+    process.exit(1);
+  }
+}
+
 const defaultAllowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',

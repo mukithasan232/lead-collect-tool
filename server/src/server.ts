@@ -4,6 +4,14 @@ import { connectDB, disconnectDB } from './config/db';
 import './config/redis'; // initialise Upstash Redis + BullMQ connection
 import './queues/leadQueue'; // boot the BullMQ Worker (starts listening for jobs)
 
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('💥 Uncaught Exception:', error);
+});
+
 async function bootstrap() {
   const app = createApp();
 

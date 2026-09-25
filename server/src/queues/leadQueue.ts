@@ -1,7 +1,7 @@
 
 import { Queue, Worker, Job } from 'bullmq';
 import { redisConnection } from '../config/redis';
-import { scraperService, ProxycurlRateLimitError } from '../services/scraper.service';
+import { scraperService, NubelaRateLimitError } from '../services/scraper.service';
 import { emailVerifierService } from '../services/emailVerifier.service';
 import { prisma } from '../config/db';
 
@@ -44,46 +44,47 @@ console.log(`📋 BullMQ Queue "${QUEUE_NAME}" initialised.`);
 export const leadWorker = new Worker<LeadScanPayload, EnrichedLead[]>(
   QUEUE_NAME,
   async (job: Job<LeadScanPayload>): Promise<EnrichedLead[]> => {
-    const { userId, jobTitle, location, industry, keywords, maxResults } = job.data;
-
-    console.log(`⚙️  [Job ${job.id}] Starting — userId="${userId}" | ` +
-      `jobTitle="${jobTitle}" | location="${location}" | industry="${industry}"`);
-
-    // ── Step 1: Fetch leads from Proxycurl ───────────────────────────────────
-    await job.updateProgress(10);
-
-    let enrichedLeads: EnrichedLead[];
     try {
-      enrichedLeads = await scraperService.fetchLeadsFromProxycurl({
-        userId,
-        jobTitle,
-        location,
-        industry,
-        keywords,
-        maxResults,
-      });
-    } catch (err: any) {
-      if (err instanceof ProxycurlRateLimitError) {
-        // Surface rate-limit clearly so BullMQ can schedule a retry
-        console.warn(
-          `⚠️  [Job ${job.id}] Proxycurl rate limit hit. ` +
-          `Retry after ${err.retryAfterSeconds}s. ` +
-          `BullMQ will retry with exponential back-off.`
-        );
-        throw err; // re-throw so BullMQ marks job as failed → triggers retry
+      const { userId, jobTitle, location, industry, keywords, maxResults } = job.data;
+
+      console.log(`⚙️  [Job ${job.id}] Starting — userId="${userId}" | ` +
+        `jobTitle="${jobTitle}" | location="${location}" | industry="${industry}"`);
+
+      // ── Step 1: Fetch leads from Nubela ───────────────────────────────────
+      await job.updateProgress(10);
+
+      let enrichedLeads: EnrichedLead[];
+      try {
+        enrichedLeads = await scraperService.fetchLeadsFromNubela({
+          userId,
+          jobTitle,
+          location,
+          industry,
+          keywords,
+          maxResults,
+        });
+      } catch (err: any) {
+        if (err instanceof NubelaRateLimitError) {
+          // Surface rate-limit clearly so BullMQ can schedule a retry
+          console.warn(
+            `⚠️  [Job ${job.id}] Nubela rate limit hit. ` +
+            `Retry after ${err.retryAfterSeconds}s. ` +
+            `BullMQ will retry with exponential back-off.`
+          );
+          throw err; // re-throw so BullMQ marks job as failed → triggers retry
+        }
+        console.error(`❌ [Job ${job.id}] Nubela fetch error:`, err.message);
+        throw err;
       }
-      console.error(`❌ [Job ${job.id}] Proxycurl fetch error:`, err.message);
-      throw err;
-    }
 
-    await job.updateProgress(50);
-    console.log(`📦 [Job ${job.id}] Proxycurl returned ${enrichedLeads.length} leads.`);
+      await job.updateProgress(50);
+      console.log(`📦 [Job ${job.id}] Nubela returned ${enrichedLeads.length} leads.`);
 
-    if (enrichedLeads.length === 0) {
-      await job.updateProgress(100);
-      console.log(`ℹ️  [Job ${job.id}] No leads returned — nothing to persist.`);
-      return [];
-    }
+      if (enrichedLeads.length === 0) {
+        await job.updateProgress(100);
+        console.log(`ℹ️  [Job ${job.id}] No leads returned — nothing to persist.`);
+        return [];
+      }
 
     // ── Step 2: Email Discovery & Verification ───────────────────────────────
     await job.updateProgress(60);
@@ -169,10 +170,14 @@ export const leadWorker = new Worker<LeadScanPayload, EnrichedLead[]>(
     );
 
     return enrichedLeads;
+    } catch (globalErr: any) {
+      console.error(`❌ [Job ${job.id}] Critical worker error: ${globalErr.message}`);
+      throw globalErr; // ensure the job fails gracefully without crashing the worker
+    }
   },
   {
     connection: redisConnection,
-    concurrency: 5, // process up to 5 scan jobs in parallel
+    concurrency: 2, // strictly 2 to avoid rate limits
   }
 );
 
