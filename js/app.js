@@ -1128,7 +1128,7 @@ class LeadPulseApp {
       if (resultMsg) resultMsg.textContent = `✓ Scan completed. Dashboard updated.`;
       this.showToast('success', `🎯 Scan finished and leads refreshed!`);
     } catch (err) {
-      console.error('Scraper error - exact error object:', err);
+      console.error("Scan API Error:", err);
       if (err instanceof TypeError) {
         console.error('This is likely a Network/CORS issue (Failed to fetch).');
       }

@@ -14,15 +14,7 @@ export function createApp(): Application {
   app.use(helmet());
 
   // CORS configuration — strictly allows production frontend domains and handles OPTIONS
-  app.use(
-    cors({
-      origin: ['https://lead.codernest.cloud', 'https://app.codernest.cloud'],
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-      credentials: true,
-      optionsSuccessStatus: 200,
-    })
-  );
+  app.use(cors({ origin: ['https://lead.codernest.cloud', 'https://app.codernest.cloud', 'http://localhost:3000'], methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'], credentials: true }));
 
   // Body parsers
   app.use(express.json({ limit: '10mb' }));
