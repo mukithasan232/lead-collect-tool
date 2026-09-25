@@ -82,7 +82,9 @@ export class LeadController {
     } catch (err: any) {
       // If DB is unavailable, return empty leads gracefully instead of crashing
       const isDbError = err?.code === 'P1001' || err?.code === 'P1012' || err?.code === 'P2024'
-        || err?.message?.includes('connect') || err?.message?.includes('datasource');
+        || err?.message?.includes('connect') || err?.message?.includes('datasource')
+        || err?.name === 'PrismaClientInitializationError' || err?.name === 'PrismaClientKnownRequestError'
+        || String(err).includes('Prisma');
 
       if (isDbError) {
         console.error('⚠️  DB unavailable — returning empty leads:', err.message);
