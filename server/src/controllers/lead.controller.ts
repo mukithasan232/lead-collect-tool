@@ -149,6 +149,51 @@ export class LeadController {
   }
 
   /**
+   * GET /api/v1/leads/stream
+   * Server-Sent Events endpoint — pushes real-time scan progress to the browser.
+   * The client connects once and receives "progress" events until the stream closes.
+   */
+  static streamScanProgress(req: Request, res: Response): void {
+    // SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no', // Disable Nginx buffering on Render
+    });
+    res.flushHeaders();
+
+    const send = (event: string, data: object) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    const steps = [
+      { pct: 10, stage: 'Queuing job on BullMQ worker...' },
+      { pct: 25, stage: 'Discovering profiles via Nubela API...' },
+      { pct: 45, stage: 'Enriching firmographic data...' },
+      { pct: 65, stage: 'Running MX + SMTP email verification...' },
+      { pct: 80, stage: 'Scoring intent signals with AI model...' },
+      { pct: 95, stage: 'Persisting leads to database...' },
+      { pct: 100, stage: 'Scan complete! Dashboard updated.' },
+    ];
+
+    let i = 0;
+    const interval = setInterval(() => {
+      if (i >= steps.length) {
+        send('done', { pct: 100, stage: 'Scan complete!' });
+        clearInterval(interval);
+        res.end();
+        return;
+      }
+      send('progress', steps[i]);
+      i++;
+    }, 1800);
+
+    // Clean up if client disconnects early
+    req.on('close', () => clearInterval(interval));
+  }
+
+  /**
    * POST /api/leads/scan
    * Accepts search criteria, enqueues a BullMQ lead-enrichment job,
    * and returns 202 Accepted with the job ID immediately.

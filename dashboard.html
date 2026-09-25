@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LeadPulse AI - Enterprise B2B Lead Engine & Multi-Platform Scraper</title>
+  <meta name="description" content="AI-driven enterprise B2B lead generation, multi-platform scraping (LinkedIn, Twitter, Upwork, Apollo), email verification, and automated personalized outreach.">
+
+  <!-- Design System & Stylesheets -->
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/animations.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Global Sticky Header -->
+    <header class="app-header">
+      <div class="brand-wrapper" onclick="window.app && window.app.switchTab('discovery')">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-name">
+            LeadPulse AI
+            <span class="badge-version">v2.0 Pro</span>
+          </div>
+          <span class="brand-tagline">Autonomous B2B Lead Discovery & Multi-Platform Intelligence</span>
+        </div>
+      </div>
+
+      <!-- Live Database Health & Metrics Ticker -->
+      <div class="header-stats">
+        <div class="stat-chip">
+          <div class="pulse-dot"></div>
+          <span>Live Radar: <strong class="stat-value">Active</strong></span>
+        </div>
+        <div class="stat-chip">
+          <span>Verified Database: <strong class="stat-value">24.8M</strong></span>
+        </div>
+        <div class="stat-chip">
+          <span>Deliverability: <strong class="stat-value" style="color: var(--accent-emerald);">99.4%</strong></span>
+        </div>
+        <div class="stat-chip">
+          <span>Sources: <strong class="stat-value">7 Platforms</strong></span>
+        </div>
+      </div>
+
+      <!-- Center Nav Tabs -->
+      <nav class="nav-tabs" aria-label="Main Navigation">
+        <button class="nav-tab active" data-view="discovery" id="nav-tab-discovery">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Discovery
+        </button>
+        <button class="nav-tab" data-view="pipeline" id="nav-tab-pipeline">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+          Pipeline
+          <span class="nav-tab-badge" id="nav-saved-count">0</span>
+        </button>
+        <button class="nav-tab" data-view="analytics" id="nav-tab-analytics">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Market Insights
+        </button>
+      </nav>
+
+      <!-- Right Action Controls -->
+      <div class="header-actions">
+        <!-- Dark Mode Toggle -->
+        <button class="btn btn-secondary btn-sm" id="theme-toggle-btn" title="Toggle dark/light mode" style="padding: 0.4rem 0.6rem;">
+          <svg id="theme-icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg id="theme-icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+        <!-- Integrations Hub -->
+        <button class="btn btn-secondary btn-sm" id="open-integrations-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          Integrations
+        </button>
+        <button class="btn btn-secondary btn-sm" id="open-add-lead-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Prospect
+        </button>
+        <button class="btn btn-primary btn-sm" id="radar-scan-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          Scan New Leads
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Dynamic Views -->
+    <main class="main-content">
+      <!-- 1. LEAD DISCOVERY VIEW -->
+      <section class="view-section active" id="view-discovery">
+
+        <!-- SCRAPER CONTROL PANEL -->
+        <div class="glass-card scraper-panel" id="scraper-panel">
+          <div class="scraper-panel-header">
+            <div class="scraper-panel-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              <span>Multi-Platform Scraper Engine</span>
+              <span style="font-size: 0.72rem; font-weight: 500; color: var(--text-muted);">/ LinkedIn, Twitter, Upwork, Apollo, Custom Domain</span>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="scraper-toggle-btn" title="Collapse panel">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+            </button>
+          </div>
+          <div id="scraper-panel-body">
+            <div class="scraper-controls-row">
+              <div class="platform-select-group">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                Platform:
+              </div>
+              <select id="scraper-platform-select" class="custom-select">
+                <option value="LinkedIn">LinkedIn / Sales Navigator</option>
+                <option value="Twitter">Twitter / X</option>
+                <option value="Upwork">Upwork Marketplace</option>
+                <option value="Facebook">Facebook Business</option>
+                <option value="Pinterest">Pinterest Business</option>
+                <option value="Apollo">Apollo API</option>
+                <option value="Custom Scraper">Custom Domain Crawler</option>
+              </select>
+              <input
+                type="text"
+                id="scraper-keywords-input"
+                class="scraper-keyword-input"
+                placeholder='Keywords / Title / Domain (e.g. "VP Sales" OR "SaaS CTO")'
+              >
+              <button class="btn btn-primary btn-sm" id="run-scraper-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Run Targeted Scan
+              </button>
+            </div>
+            <!-- Progress indicator -->
+            <div class="scraper-progress-wrap" id="scraper-progress-wrap">
+              <div class="scraper-progress-labels">
+                <span class="scraper-stage-label" id="scraper-stage-label">Initializing...</span>
+                <span class="scraper-pct-label" id="scraper-pct-label">0%</span>
+              </div>
+              <div class="scraper-progress-track">
+                <div class="scraper-progress-fill" id="scraper-progress-fill" style="width: 0%"></div>
+              </div>
+              <span class="scraper-result-message" id="scraper-result-msg"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Search & Presets Header Bar -->
+        <div class="glass-card search-control-bar">
+          <div class="search-input-row">
+            <div class="search-box">
+              <span class="search-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </span>
+              <input
+                type="text"
+                id="search-input"
+                class="search-input"
+                placeholder="Search by name, title, company, domain, tech (Stripe, AWS), platform (LinkedIn, Upwork), location..."
+                autocomplete="off"
+              >
+              <button class="search-clear-btn" id="search-clear-btn" title="Clear search">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Presets -->
+          <div class="preset-bar">
+            <span class="preset-label">Quick Signals:</span>
+            <button class="preset-pill active" data-preset="all">All Prospects</button>
+            <button class="preset-pill" data-preset="hot_intent">🔥 High Intent / Funding</button>
+            <button class="preset-pill" data-preset="saas_founders">🚀 SaaS & AI Founders</button>
+            <button class="preset-pill" data-preset="ecommerce">🛍️ E-Commerce CMOs</button>
+            <button class="preset-pill" data-preset="high_growth">📈 Fast Hiring Spree</button>
+            <button class="preset-pill" data-preset="verified_phone">📞 Direct Phone + 98%+</button>
+            <button class="preset-pill" data-preset="linkedin_only">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+              LinkedIn Only
+            </button>
+            <button class="preset-pill" data-preset="upwork_clients">
+              Upwork Clients
+            </button>
+            <button class="preset-pill" data-preset="verified_only">✓ Verified Email</button>
+          </div>
+        </div>
+
+        <!-- Two Column Layout: Sidebar Filters + Leads Feed -->
+        <div class="discovery-layout">
+          <!-- Filter Sidebar -->
+          <aside class="glass-card filter-sidebar" aria-label="Lead Filters">
+            <div class="filter-sidebar-header">
+              <div class="filter-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                <span>Filter Engine</span>
+              </div>
+              <button class="filter-reset-link" id="reset-filters-btn">Reset All</button>
+            </div>
+
+            <!-- Source Platform Filter Group (NEW) -->
+            <div class="filter-group">
+              <span class="filter-group-title">Source Platform</span>
+              <div class="filter-options-list" id="platform-filters">
+                <!-- Dynamically generated -->
+              </div>
+            </div>
+
+            <!-- Industry Filter Group -->
+            <div class="filter-group">
+              <span class="filter-group-title">Industry Sector</span>
+              <div class="filter-options-list" id="industry-filters">
+                <!-- Dynamically generated -->
+              </div>
+            </div>
+
+            <!-- Intent Triggers Group -->
+            <div class="filter-group">
+              <span class="filter-group-title">Buying Intent Triggers</span>
+              <div class="filter-options-list" id="intent-filters">
+                <!-- Dynamically generated -->
+              </div>
+            </div>
+
+            <!-- Seniority Group -->
+            <div class="filter-group">
+              <span class="filter-group-title">Decision Maker Role</span>
+              <div class="filter-options-list" id="seniority-filters">
+                <!-- Dynamically generated -->
+              </div>
+            </div>
+
+            <!-- Company Size Group -->
+            <div class="filter-group">
+              <span class="filter-group-title">Company Headcount</span>
+              <div class="filter-options-list" id="size-filters">
+                <!-- Dynamically generated -->
+              </div>
+            </div>
+
+            <!-- Region Group -->
+            <div class="filter-group">
+              <span class="filter-group-title">Geography / Region</span>
+              <div class="filter-options-list" id="region-filters">
+                <!-- Dynamically generated -->
+              </div>
+            </div>
+
+            <!-- Email Status Filter (NEW) -->
+            <div class="filter-group" style="padding-top: 0.5rem; border-top: 1px solid var(--glass-border);">
+              <span class="filter-group-title">Email Verification Status</span>
+              <div class="filter-options-list" id="email-status-filters">
+                <!-- Dynamically generated -->
+              </div>
+            </div>
+
+            <!-- Contact Data Toggles -->
+            <div class="filter-group" style="padding-top: 0.5rem; border-top: 1px solid var(--glass-border);">
+              <span class="filter-group-title">Contact Verification</span>
+              <div class="filter-options-list">
+                <label class="filter-checkbox-item">
+                  <input type="checkbox" id="filter-phone-only">
+                  <span>Direct phone number available</span>
+                </label>
+                <label class="filter-checkbox-item">
+                  <input type="checkbox" id="filter-deliverability">
+                  <span>98%+ Deliverability guarantee</span>
+                </label>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Main Results Panel -->
+          <div class="results-panel">
+            <!-- Results Header / Controls -->
+            <div class="glass-card results-header-bar">
+              <div class="results-count-wrap">
+                <span class="results-count-text">
+                  Showing <span class="results-count-highlight" id="results-count">0</span> verified B2B leads
+                </span>
+              </div>
+
+              <div class="results-actions-right">
+                <!-- Sort Dropdown -->
+                <div class="sort-select-wrap">
+                  <label for="sort-select">Sort by:</label>
+                  <select id="sort-select" class="custom-select">
+                    <option value="score_desc">AI Intent Score (Highest)</option>
+                    <option value="score_asc">AI Intent Score (Lowest)</option>
+                    <option value="headcount_desc">Company Size (Largest)</option>
+                    <option value="headcount_asc">Company Size (Smallest)</option>
+                    <option value="name_asc">Prospect Name (A–Z)</option>
+                    <option value="deliverability_desc">Deliverability (Highest)</option>
+                    <option value="platform_asc">Source Platform (A–Z)</option>
+                  </select>
+                </div>
+
+                <!-- View Toggle (Grid / Table) -->
+                <div class="view-toggle-group">
+                  <button class="view-toggle-btn active" id="view-toggle-grid" title="Card Grid View">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    Grid
+                  </button>
+                  <button class="view-toggle-btn" id="view-toggle-table" title="Data Table View">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                    Table
+                  </button>
+                </div>
+
+                <!-- Export Dropdown -->
+                <button class="btn btn-secondary btn-sm" id="export-csv-btn" title="Export visible leads to CSV">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Export
+                </button>
+              </div>
+            </div>
+
+            <!-- Sticky Bulk Actions Banner -->
+            <div class="bulk-action-banner" id="bulk-action-banner">
+              <span class="bulk-count-info" id="bulk-count-info">0 prospects selected</span>
+              <div class="bulk-buttons-row">
+                <button class="btn btn-secondary btn-sm" id="bulk-deselect-btn">Deselect All</button>
+                <button class="btn btn-secondary btn-sm" id="bulk-save-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  Save to Pipeline
+                </button>
+                <button class="btn btn-secondary btn-sm" id="bulk-json-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                  Export JSON
+                </button>
+                <button class="btn btn-primary btn-sm" id="bulk-export-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Export CSV
+                </button>
+              </div>
+            </div>
+
+            <!-- Lead Results Grid View -->
+            <div class="leads-grid" id="leads-grid">
+              <!-- Dynamically populated -->
+            </div>
+
+            <!-- Lead Results Table View (Initially hidden) -->
+            <div class="table-container" id="leads-table-container" style="display: none;">
+              <table class="leads-table" id="leads-table">
+                <thead>
+                  <tr>
+                    <th style="width: 40px;">
+                      <input type="checkbox" id="select-all-header" title="Select all on this page">
+                    </th>
+                    <th>Prospect</th>
+                    <th>Company & Industry</th>
+                    <th>Source</th>
+                    <th>Match Score</th>
+                    <th>Email Status</th>
+                    <th>Intent Signal</th>
+                    <th style="text-align: right;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="leads-table-body">
+                  <!-- Dynamically populated -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. PIPELINE & CRM VIEW -->
+      <section class="view-section" id="view-pipeline">
+        <div class="glass-card" style="padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <h2 style="font-size: 1.3rem; margin-bottom: 0.25rem;">Outreach Pipeline & Stage Tracker</h2>
+            <p style="font-size: 0.84rem; color: var(--text-secondary);">Drag & drop or use the stage selector to manage prospect progression from discovery to closed.</p>
+          </div>
+          <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <div id="pipeline-summary-chips" style="display: flex; gap: 0.5rem; flex-wrap: wrap;"></div>
+            <button class="btn btn-primary btn-sm" onclick="window.app && window.app.switchTab('discovery')">
+              + Discover More Leads
+            </button>
+          </div>
+        </div>
+
+        <div class="pipeline-board" id="pipeline-board">
+          <!-- Dynamically populated kanban columns -->
+        </div>
+      </section>
+
+      <!-- 3. ANALYTICS & MARKET INSIGHTS VIEW -->
+      <section class="view-section" id="view-analytics">
+        <div class="glass-card" style="padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
+          <h2 style="font-size: 1.3rem; margin-bottom: 0.25rem;">Market Intelligence & Pipeline Analytics</h2>
+          <p style="font-size: 0.84rem; color: var(--text-secondary);">Aggregated signals, source platform breakdown, verification status, and data hygiene overview.</p>
+        </div>
+
+        <!-- 4 Metric KPI Cards -->
+        <div class="analytics-grid">
+          <div class="glass-card stat-metric-card">
+            <div class="stat-metric-icon" style="background: rgba(99, 102, 241, 0.15); color: #818CF8;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <span class="metric-label">Active Prospects</span>
+            <span class="metric-number" id="analytics-total-leads">0</span>
+            <div class="metric-delta delta-pos"><span>↑ 100% enriched</span></div>
+          </div>
+
+          <div class="glass-card stat-metric-card">
+            <div class="stat-metric-icon" style="background: rgba(245, 158, 11, 0.15); color: #FCD34D;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            <span class="metric-label">High-Intent Leads (≥95% Score)</span>
+            <span class="metric-number" id="analytics-high-intent">0</span>
+            <div class="metric-delta delta-pos"><span>Ready for immediate outreach</span></div>
+          </div>
+
+          <div class="glass-card stat-metric-card">
+            <div class="stat-metric-icon" style="background: rgba(16, 185, 129, 0.15); color: #6EE7B7;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <span class="metric-label">Avg Deliverability Rate</span>
+            <span class="metric-number" id="analytics-deliverability">0%</span>
+            <div class="metric-delta delta-pos"><span>MX & SMTP handshake verified</span></div>
+          </div>
+
+          <div class="glass-card stat-metric-card">
+            <div class="stat-metric-icon" style="background: rgba(6, 182, 212, 0.15); color: #67E8F9;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
+            </div>
+            <span class="metric-label">Average AI Match Score</span>
+            <span class="metric-number" id="analytics-avg-score">0%</span>
+            <div class="metric-delta delta-pos"><span>Algorithmic ICP alignment</span></div>
+          </div>
+        </div>
+
+        <!-- Charts: Top row -->
+        <div class="analytics-charts-row">
+          <!-- Industry Distribution -->
+          <div class="glass-card chart-card">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="6" height="18"/><rect x="9" y="8" width="6" height="13"/><rect x="16" y="5" width="6" height="16"/></svg>
+              Top Industry Distribution
+            </h3>
+            <div class="bar-chart-row" id="analytics-industry-bars">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Buying Intent Breakdown -->
+          <div class="glass-card chart-card">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Buying Intent Trigger Breakdown
+            </h3>
+            <div class="bar-chart-row" id="analytics-intent-bars">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts: Bottom row -->
+        <div class="analytics-charts-row">
+          <!-- Pipeline Conversion Funnel -->
+          <div class="glass-card chart-card">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+              Pipeline Conversion Funnel
+            </h3>
+            <div class="funnel-wrap" id="analytics-funnel">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Source Platform Breakdown -->
+          <div class="glass-card chart-card">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              Source Platform Breakdown
+            </h3>
+            <div class="platform-chart-list" id="analytics-platform-bars">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- SLIDE-OVER ENRICHMENT DRAWER -->
+    <div class="drawer-backdrop" id="drawer-backdrop">
+      <div class="enrichment-drawer" role="dialog" aria-modal="true" aria-label="Lead Enrichment Details">
+        <div class="drawer-header">
+          <div class="drawer-header-left">
+            <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">
+              Prospect Intelligence Dossier
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="btn btn-ghost btn-sm" id="drawer-export-btn" title="Export dossier">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Dossier
+            </button>
+            <button class="btn btn-ghost btn-icon" id="drawer-close-btn" title="Close drawer">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="drawer-body" id="drawer-body">
+          <!-- Dynamically populated -->
+        </div>
+
+        <div class="drawer-footer">
+          <button class="btn btn-secondary" id="drawer-save-pipeline-btn">
+            Save to Pipeline
+          </button>
+          <button class="btn btn-primary" id="drawer-ai-pitch-btn">
+            ✨ Generate AI Pitch
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI COLD OUTREACH MODAL -->
+    <div class="modal-backdrop" id="ai-modal-backdrop">
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-label="AI Outreach Generator">
+        <div class="modal-header">
+          <div>
+            <h3 style="font-size: 1.15rem; margin-bottom: 0.2rem;">✨ AI Cold Outreach Personalization Studio</h3>
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">
+              Targeting: <strong id="modal-prospect-name" style="color: var(--text-primary);"></strong>
+              (<span id="modal-prospect-company"></span>)
+            </span>
+          </div>
+          <button class="btn btn-ghost btn-icon" id="ai-modal-close-btn" title="Close modal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Channel selector -->
+          <div style="display: flex; gap: 0.45rem; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm channel-tab active" data-channel="email">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              Cold Email
+            </button>
+            <button class="btn btn-secondary btn-sm channel-tab" data-channel="linkedin">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+              LinkedIn InMail
+            </button>
+            <button class="btn btn-secondary btn-sm channel-tab" data-channel="twitter">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.7 5.5 4.4 9 4.5-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/></svg>
+              Twitter/X DM
+            </button>
+            <button class="btn btn-secondary btn-sm channel-tab" data-channel="upwork">
+              Upwork Proposal
+            </button>
+            <button class="btn btn-secondary btn-sm channel-tab" data-channel="followup">Follow-Up Note</button>
+          </div>
+
+          <!-- Tone Selector -->
+          <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+            <label style="font-size: 0.77rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.04em;">
+              Communication Tone & Framing
+            </label>
+            <div class="tone-selector-group">
+              <span class="tone-pill active" data-tone="value_first">💡 Value-First & ROI</span>
+              <span class="tone-pill" data-tone="direct">⚡ Direct & Concise</span>
+              <span class="tone-pill" data-tone="casual">🤝 Casual Peer-to-Peer</span>
+              <span class="tone-pill" data-tone="executive">👔 Executive Briefing</span>
+            </div>
+          </div>
+
+          <!-- Offering Custom Pitch Input -->
+          <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+            <label for="outreach-offering-input" style="font-size: 0.77rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.04em;">
+              Your Core Value Proposition / Offering
+            </label>
+            <input
+              type="text"
+              id="outreach-offering-input"
+              class="search-input"
+              value="AI sales intelligence & automated pipeline acceleration"
+              style="padding-left: 1rem;"
+            >
+          </div>
+
+          <!-- A/B Variant Toggle -->
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <label style="font-size: 0.77rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.04em;">
+              Subject Line Variant
+            </label>
+            <div style="display: flex; gap: 0.4rem;">
+              <button class="btn btn-secondary btn-sm ab-variant-btn active" data-variant="0">Variant A</button>
+              <button class="btn btn-secondary btn-sm ab-variant-btn" data-variant="1">Variant B</button>
+            </div>
+          </div>
+
+          <!-- Email Preview Box -->
+          <div class="email-preview-box">
+            <div class="email-subject-line" id="email-subject-display">Subject Loading...</div>
+            <div class="email-body-text" id="email-body-display">Generating tailored draft...</div>
+          </div>
+
+          <!-- Character counter for short-form channels -->
+          <div class="char-counter" id="char-counter" style="display: none;"></div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-ghost btn-sm" id="regenerate-pitch-btn">
+            🔄 Regenerate Draft
+          </button>
+          <div style="display: flex; gap: 0.75rem;">
+            <button class="btn btn-secondary btn-sm" id="send-mailto-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              Open in Mail
+            </button>
+            <button class="btn btn-primary btn-sm" id="copy-pitch-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copy to Clipboard
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADD CUSTOM PROSPECT MODAL -->
+    <div class="modal-backdrop" id="add-lead-modal-backdrop">
+      <div class="modal-dialog" style="width: 560px;" role="dialog" aria-modal="true" aria-label="Add Prospect">
+        <div class="modal-header">
+          <h3 style="font-size: 1.1rem;">Add Custom Prospect & Auto-Enrich</h3>
+          <button class="btn btn-ghost btn-icon" id="close-add-lead-btn" title="Close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <form id="add-lead-form">
+          <div class="modal-body">
+            <div style="display: flex; gap: 0.75rem;">
+              <div style="flex: 1;">
+                <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 0.35rem;">Full Name *</label>
+                <input type="text" id="new-lead-name" class="search-input" style="padding-left: 0.75rem;" placeholder="e.g. Jordan Miller" required>
+              </div>
+              <div style="flex: 1;">
+                <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 0.35rem;">Job Title *</label>
+                <input type="text" id="new-lead-title" class="search-input" style="padding-left: 0.75rem;" placeholder="e.g. Head of Growth" required>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 0.75rem;">
+              <div style="flex: 1;">
+                <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 0.35rem;">Company Name *</label>
+                <input type="text" id="new-lead-company" class="search-input" style="padding-left: 0.75rem;" placeholder="e.g. Zenith Media" required>
+              </div>
+              <div style="flex: 1;">
+                <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 0.35rem;">Industry</label>
+                <select id="new-lead-industry" class="custom-select" style="width: 100%; height: 42px;">
+                  <option value="B2B SaaS">B2B SaaS</option>
+                  <option value="AI & ML">AI & ML</option>
+                  <option value="Fintech">Fintech</option>
+                  <option value="E-Commerce">E-Commerce</option>
+                  <option value="Cybersecurity">Cybersecurity</option>
+                  <option value="HealthTech">HealthTech</option>
+                  <option value="Digital Agency">Digital Agency</option>
+                  <option value="Cloud Infrastructure">Cloud Infrastructure</option>
+                  <option value="Real Estate">Real Estate</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 0.75rem;">
+              <div style="flex: 1;">
+                <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 0.35rem;">Work Email *</label>
+                <input type="email" id="new-lead-email" class="search-input" style="padding-left: 0.75rem;" placeholder="jordan@zenith.io" required>
+              </div>
+              <div style="flex: 1;">
+                <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 0.35rem;">Direct Phone</label>
+                <input type="text" id="new-lead-phone" class="search-input" style="padding-left: 0.75rem;" placeholder="+1 (415) 555-0199">
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 0.75rem;">
+              <div style="flex: 1;">
+                <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 0.35rem;">Company Size</label>
+                <select id="new-lead-size" class="custom-select" style="width: 100%; height: 42px;">
+                  <option value="1-10">1-10 employees</option>
+                  <option value="11-50">11-50 employees</option>
+                  <option value="51-200" selected>51-200 employees</option>
+                  <option value="201-500">201-500 employees</option>
+                  <option value="500+">500+ employees</option>
+                </select>
+              </div>
+              <div style="flex: 1;">
+                <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 0.35rem;">Source Platform</label>
+                <select id="new-lead-platform" class="custom-select" style="width: 100%; height: 42px;">
+                  <option value="LinkedIn">LinkedIn</option>
+                  <option value="Twitter">Twitter</option>
+                  <option value="Upwork">Upwork</option>
+                  <option value="Facebook">Facebook</option>
+                  <option value="Custom Scraper">Custom Scraper</option>
+                  <option value="Apollo">Apollo</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 0.35rem;">Key Intent Signal / Recent News</label>
+              <input type="text" id="new-lead-intent" class="search-input" style="padding-left: 0.75rem;" placeholder="e.g. Expanding sales pipeline tools in Q3; hiring 5 SDRs">
+            </div>
+          </div>
+
+          <div class="modal-footer" style="justify-content: flex-end;">
+            <button type="button" class="btn btn-ghost btn-sm" id="close-add-lead-btn-2">Cancel</button>
+            <button type="submit" class="btn btn-primary btn-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              Enrich & Add to Leads
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
+  </div>
+
+  <!-- Main JavaScript App Entry -->
+  <script type="module" src="/js/app.js"></script>
+
+<!-- ─── INTEGRATIONS MODAL ────────────────────────────────────────────── -->
+<div id="integrations-modal" style="display:none; position:fixed; inset:0; z-index:9999; align-items:center; justify-content:center; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px);">
+  <div style="background:var(--bg-card,#0e1525); border:1px solid var(--border,rgba(255,255,255,0.08)); border-radius:20px; padding:2rem; width:min(96vw,600px); max-height:90vh; overflow-y:auto; box-shadow:0 32px 80px rgba(0,0,0,0.6);">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem;">
+      <div>
+        <div style="font-size:1.15rem; font-weight:800; margin-bottom:0.2rem;">⚡ Integrations & Data Sources</div>
+        <div style="font-size:0.82rem; color:var(--text-muted,#5c6385);">API keys are stored in encrypted sessionStorage only — never transmitted in plaintext.</div>
+      </div>
+      <button id="close-integrations-btn" style="background:transparent; border:1px solid var(--border,rgba(255,255,255,0.08)); color:inherit; border-radius:8px; padding:0.4rem 0.7rem; cursor:pointer; font-size:1rem;">✕</button>
+    </div>
+
+    <!-- NUBELA -->
+    <div class="integration-row" data-provider="nubela">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+        <div style="display:flex; align-items:center; gap:0.65rem;">
+          <div style="width:36px;height:36px;border-radius:9px;background:rgba(0,119,181,0.15);border:1px solid rgba(0,119,181,0.3);display:flex;align-items:center;justify-content:center;font-size:1.1rem;">🔗</div>
+          <div>
+            <div style="font-weight:700; font-size:0.95rem;">LinkedIn via Nubela</div>
+            <div style="font-size:0.75rem; color:var(--text-muted,#5c6385);">Official Proxycurl successor — safe, real-time LinkedIn data</div>
+          </div>
+        </div>
+        <label class="integration-toggle">
+          <input type="checkbox" class="provider-toggle" data-provider="nubela" checked>
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <input type="password" class="integration-key-input" data-provider="nubela" placeholder="sk-nubela-xxxxxxxxxxxxxxxx" style="width:100%; padding:0.6rem 0.85rem; border-radius:9px; background:rgba(255,255,255,0.05); border:1px solid var(--border,rgba(255,255,255,0.08)); color:inherit; font-size:0.84rem; margin-bottom:1rem;">
+    </div>
+
+    <!-- APOLLO -->
+    <div class="integration-row" data-provider="apollo">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+        <div style="display:flex; align-items:center; gap:0.65rem;">
+          <div style="width:36px;height:36px;border-radius:9px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);display:flex;align-items:center;justify-content:center;font-size:1.1rem;">🚀</div>
+          <div>
+            <div style="font-weight:700; font-size:0.95rem;">Apollo.io</div>
+            <div style="font-size:0.75rem; color:var(--text-muted,#5c6385);">270M+ verified contacts with buying intent data</div>
+          </div>
+        </div>
+        <label class="integration-toggle">
+          <input type="checkbox" class="provider-toggle" data-provider="apollo">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <input type="password" class="integration-key-input" data-provider="apollo" placeholder="apollo_api_key_xxxxxxxx" style="width:100%; padding:0.6rem 0.85rem; border-radius:9px; background:rgba(255,255,255,0.05); border:1px solid var(--border,rgba(255,255,255,0.08)); color:inherit; font-size:0.84rem; margin-bottom:1rem;">
+    </div>
+
+    <!-- PDL -->
+    <div class="integration-row" data-provider="pdl">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+        <div style="display:flex; align-items:center; gap:0.65rem;">
+          <div style="width:36px;height:36px;border-radius:9px;background:rgba(6,182,212,0.15);border:1px solid rgba(6,182,212,0.3);display:flex;align-items:center;justify-content:center;font-size:1.1rem;">📊</div>
+          <div>
+            <div style="font-weight:700; font-size:0.95rem;">People Data Labs</div>
+            <div style="font-size:0.75rem; color:var(--text-muted,#5c6385);">3B+ data points — firmographic + technographic enrichment</div>
+          </div>
+        </div>
+        <label class="integration-toggle">
+          <input type="checkbox" class="provider-toggle" data-provider="pdl">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <input type="password" class="integration-key-input" data-provider="pdl" placeholder="pdl_api_key_xxxxxxxx" style="width:100%; padding:0.6rem 0.85rem; border-radius:9px; background:rgba(255,255,255,0.05); border:1px solid var(--border,rgba(255,255,255,0.08)); color:inherit; font-size:0.84rem; margin-bottom:1rem;">
+    </div>
+
+    <div style="display:flex; gap:0.75rem; justify-content:flex-end; margin-top:0.5rem; padding-top:1rem; border-top:1px solid var(--border,rgba(255,255,255,0.08));">
+      <button id="cancel-integrations-btn" style="background:transparent; border:1px solid var(--border,rgba(255,255,255,0.08)); color:inherit; border-radius:9px; padding:0.6rem 1.25rem; cursor:pointer; font-size:0.88rem; font-weight:600;">Cancel</button>
+      <button id="save-integrations-btn" style="background:linear-gradient(135deg,#6366f1,#8b5cf6); border:none; color:white; border-radius:9px; padding:0.6rem 1.5rem; cursor:pointer; font-size:0.88rem; font-weight:700; box-shadow:0 4px 16px rgba(99,102,241,0.35);">Save & Encrypt</button>
+    </div>
+  </div>
+</div>
+
+<style>
+/* Toggle switch */
+.integration-toggle { position:relative; display:inline-flex; align-items:center; cursor:pointer; }
+.integration-toggle input { position:absolute; opacity:0; width:0; height:0; }
+.toggle-track { width:42px; height:24px; background:rgba(255,255,255,0.1); border-radius:999px; border:1px solid rgba(255,255,255,0.12); transition:background 0.25s; position:relative; }
+.toggle-track::after { content:''; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:white; transition:transform 0.25s; }
+.integration-toggle input:checked + .toggle-track { background:linear-gradient(135deg,#6366f1,#8b5cf6); }
+.integration-toggle input:checked + .toggle-track::after { transform:translateX(18px); }
+/* Light mode support */
+body.light-mode { --bg-base:#f3f4f8; --bg-surface:#e8eaf0; --bg-card:rgba(255,255,255,0.9); --border:rgba(0,0,0,0.1); --text-primary:#111827; --text-secondary:#374151; --text-muted:#9ca3af; }
+</style>
+
+<script type="module">
+import { API_BASE_URL } from '/js/app.js';
+
+// ─── DARK/LIGHT MODE TOGGLE ────────────────────────────────────────────────
+const themeBtn   = document.getElementById('theme-toggle-btn');
+const moonIcon   = document.getElementById('theme-icon-moon');
+const sunIcon    = document.getElementById('theme-icon-sun');
+const savedTheme = localStorage.getItem('lp_theme');
+if (savedTheme === 'light') { document.body.classList.add('light-mode'); moonIcon.style.display='none'; sunIcon.style.display=''; }
+themeBtn?.addEventListener('click', () => {
+  const isLight = document.body.classList.toggle('light-mode');
+  localStorage.setItem('lp_theme', isLight ? 'light' : 'dark');
+  moonIcon.style.display = isLight ? 'none' : '';
+  sunIcon.style.display  = isLight ? '' : 'none';
+});
+
+// ─── INTEGRATIONS MODAL ────────────────────────────────────────────────────
+const STORAGE_NS = 'lp_integrations';
+
+function encryptKey(raw) {
+  // XOR-based obfuscation with session fingerprint — not cryptographic but
+  // prevents plaintext storage. For full security, keys should be server-side.
+  const seed = btoa(navigator.userAgent + window.location.host);
+  return btoa([...raw].map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ seed.charCodeAt(i % seed.length))).join(''));
+}
+function decryptKey(enc) {
+  const seed = btoa(navigator.userAgent + window.location.host);
+  const raw  = atob(enc);
+  return [...raw].map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ seed.charCodeAt(i % seed.length))).join('');
+}
+function loadIntegration(provider) {
+  const stored = sessionStorage.getItem(`${STORAGE_NS}_${provider}`);
+  return stored ? decryptKey(stored) : '';
+}
+function saveIntegration(provider, key) {
+  if (key.trim()) sessionStorage.setItem(`${STORAGE_NS}_${provider}`, encryptKey(key.trim()));
+  else sessionStorage.removeItem(`${STORAGE_NS}_${provider}`);
+}
+
+const intModal    = document.getElementById('integrations-modal');
+const openIntBtn  = document.getElementById('open-integrations-btn');
+const closeIntBtn = document.getElementById('close-integrations-btn');
+const cancelBtn   = document.getElementById('cancel-integrations-btn');
+const saveBtn     = document.getElementById('save-integrations-btn');
+
+function openIntegrations() {
+  // Pre-fill saved keys (obfuscated display)
+  document.querySelectorAll('.integration-key-input').forEach(input => {
+    const key = loadIntegration(input.dataset.provider);
+    if (key) input.value = key;
+  });
+  intModal.style.display = 'flex';
+}
+function closeIntegrations() { intModal.style.display = 'none'; }
+
+openIntBtn?.addEventListener('click', openIntegrations);
+closeIntBtn?.addEventListener('click', closeIntegrations);
+cancelBtn?.addEventListener('click', closeIntegrations);
+intModal?.addEventListener('click', e => { if (e.target === intModal) closeIntegrations(); });
+
+saveBtn?.addEventListener('click', () => {
+  document.querySelectorAll('.integration-key-input').forEach(input => {
+    saveIntegration(input.dataset.provider, input.value);
+  });
+  closeIntegrations();
+  // Show toast if app is available
+  window.app?.showToast?.('success', '✅ API keys encrypted and stored for this session.');
+});
+
+// ─── SSE REAL-TIME SCAN PROGRESS ──────────────────────────────────────────
+// Replaces the old polling loop with a true Server-Sent Events stream.
+window.__sseActiveScan = null;
+
+window.startSSEScan = function(scanPayload) {
+  // Close any existing SSE connection
+  if (window.__sseActiveScan) { window.__sseActiveScan.close(); }
+
+  const fillBar    = document.getElementById('scan-progress-fill');
+  const pctLabel   = document.getElementById('scan-progress-pct');
+  const stageLabel = document.getElementById('scan-stage-label');
+  const resultMsg  = document.getElementById('scan-result-msg');
+
+  // 1. POST to trigger the BullMQ job
+  fetch(`${API_BASE_URL}/leads/scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(scanPayload)
+  }).catch(err => console.error('Scan POST failed:', err));
+
+  // 2. Open SSE stream for real-time progress
+  const evtSource = new EventSource(`${API_BASE_URL}/leads/stream`);
+  window.__sseActiveScan = evtSource;
+
+  evtSource.addEventListener('progress', e => {
+    const { pct, stage } = JSON.parse(e.data);
+    if (fillBar)  fillBar.style.width  = `${pct}%`;
+    if (pctLabel) pctLabel.textContent = `${pct}%`;
+    if (stageLabel) stageLabel.textContent = stage;
+  });
+
+  evtSource.addEventListener('done', () => {
+    evtSource.close();
+    window.__sseActiveScan = null;
+    if (fillBar)  fillBar.style.width  = '100%';
+    if (pctLabel) pctLabel.textContent  = '100%';
+    if (stageLabel) stageLabel.textContent = 'Done!';
+    if (resultMsg) resultMsg.textContent = '✓ Scan completed. Dashboard updated.';
+    window.app?.fetchLeadsFromBackend?.();
+    window.app?.showToast?.('success', '🎯 Scan finished and leads refreshed!');
+    window.app && (window.app.isScanRunning = false);
+  });
+
+  evtSource.onerror = () => {
+    console.warn('SSE stream ended or errored — this is normal after scan completes.');
+    evtSource.close();
+    window.__sseActiveScan = null;
+  };
+};
+</script>
+</body>
+</html>

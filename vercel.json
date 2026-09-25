@@ -4,6 +4,7 @@
   "outputDirectory": ".",
   "cleanUrls": true,
   "routes": [
+    { "src": "/dashboard", "dest": "/dashboard.html" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
