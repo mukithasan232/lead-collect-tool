@@ -829,8 +829,6 @@
 .toggle-track::after { content:''; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:white; transition:transform 0.25s; }
 .integration-toggle input:checked + .toggle-track { background:linear-gradient(135deg,#6366f1,#8b5cf6); }
 .integration-toggle input:checked + .toggle-track::after { transform:translateX(18px); }
-/* Light mode support */
-body.light-mode { --bg-base:#f3f4f8; --bg-surface:#e8eaf0; --bg-card:rgba(255,255,255,0.9); --border:rgba(0,0,0,0.1); --text-primary:#111827; --text-secondary:#374151; --text-muted:#9ca3af; }
 </style>
 
 <script type="module">
@@ -840,13 +838,25 @@ import { API_BASE_URL } from '/js/app.js';
 const themeBtn   = document.getElementById('theme-toggle-btn');
 const moonIcon   = document.getElementById('theme-icon-moon');
 const sunIcon    = document.getElementById('theme-icon-sun');
-const savedTheme = localStorage.getItem('lp_theme');
-if (savedTheme === 'light') { document.body.classList.add('light-mode'); moonIcon.style.display='none'; sunIcon.style.display=''; }
+let savedTheme = localStorage.getItem('lp_theme') || 'dark';
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  if (theme === 'light') {
+    moonIcon.style.display = 'none';
+    sunIcon.style.display = '';
+  } else {
+    moonIcon.style.display = '';
+    sunIcon.style.display = 'none';
+  }
+}
+
+applyTheme(savedTheme);
+
 themeBtn?.addEventListener('click', () => {
-  const isLight = document.body.classList.toggle('light-mode');
-  localStorage.setItem('lp_theme', isLight ? 'light' : 'dark');
-  moonIcon.style.display = isLight ? 'none' : '';
-  sunIcon.style.display  = isLight ? '' : 'none';
+  savedTheme = savedTheme === 'light' ? 'dark' : 'light';
+  localStorage.setItem('lp_theme', savedTheme);
+  applyTheme(savedTheme);
 });
 
 // ─── INTEGRATIONS MODAL ────────────────────────────────────────────────────

@@ -84,6 +84,30 @@
   --radius-full: 9999px;
 }
 
+[data-theme="light"] {
+  --bg-space: #F8FAFC;
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F1F5F9;
+  --bg-tertiary: #E2E8F0;
+
+  --glass-card: rgba(255, 255, 255, 0.7);
+  --glass-card-hover: rgba(255, 255, 255, 0.95);
+  --glass-panel: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-border-hover: rgba(99, 102, 241, 0.4);
+  --glass-border-active: rgba(99, 102, 241, 0.6);
+  --glass-sheen: rgba(0, 0, 0, 0.02);
+
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
+  --text-highlight: #4F46E5;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 8px 24px -4px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 16px 40px -8px rgba(0, 0, 0, 0.15);
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -125,6 +149,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Animated mesh grid overlay */
@@ -189,6 +214,7 @@ a:hover { color: var(--accent-purple); }
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 /* Subtle bottom glow line on header */
