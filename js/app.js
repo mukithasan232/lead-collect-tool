@@ -1128,9 +1128,12 @@ class LeadPulseApp {
       if (resultMsg) resultMsg.textContent = `✓ Scan completed. Dashboard updated.`;
       this.showToast('success', `🎯 Scan finished and leads refreshed!`);
     } catch (err) {
-      console.error('Scraper error:', err);
-      if (resultMsg) resultMsg.textContent = '⚠ Scan encountered an issue. Please try again.';
-      this.showToast('error', 'Scraper scan failed. Please try again.');
+      console.error('Scraper error - exact error object:', err);
+      if (err instanceof TypeError) {
+        console.error('This is likely a Network/CORS issue (Failed to fetch).');
+      }
+      if (resultMsg) resultMsg.textContent = `⚠ Scan encountered an issue: ${err.message}`;
+      this.showToast('error', `Scraper scan failed: ${err.message}`);
     } finally {
       this.isScanRunning = false;
       if (runBtn) { runBtn.disabled = false; runBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Targeted Scan'; }
