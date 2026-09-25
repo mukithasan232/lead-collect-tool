@@ -18,7 +18,7 @@ const STORAGE_KEY = 'leadpulse_leads_v2';
 // and routes to production backend URL when deployed.
 export const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? 'http://localhost:5001/api/v1'
-  : (window.__LEADPULSE_API_URL__ || localStorage.getItem('leadpulse_api_url') || 'https://YOUR_BACKEND_URL/api/v1');
+  : (window.__LEADPULSE_API_URL__ || localStorage.getItem('leadpulse_api_url') || 'https://lead-collect-tool.onrender.com/api/v1');
 
 // ── Platform Badge HTML Generator ─────────────────────────────────────────────
 function getPlatformBadgeHTML(platform) {
