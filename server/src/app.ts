@@ -7,14 +7,43 @@ import { notFoundHandler } from './middleware/notFoundHandler';
 import { errorHandler } from './middleware/errorHandler';
 import { apiRouter } from './routes';
 
+const ALLOWED_ORIGINS = [
+  'https://lead.codernest.cloud',
+  'https://app.codernest.cloud',
+  'https://codernest.cloud',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  ...env.CORS_ORIGINS,
+];
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g., curl, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    // Allow any Vercel preview deploy URL
+    if (origin.endsWith('.vercel.app')) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  optionsSuccessStatus: 204,
+};
+
 export function createApp(): Application {
   const app = express();
 
-  // Security headers
-  app.use(helmet());
+  // ── CORS must be registered FIRST, before helmet or any other middleware ──
+  // Explicitly handle OPTIONS preflight for ALL routes
+  app.options('*', cors(corsOptions));
+  app.use(cors(corsOptions));
 
-  // CORS configuration — strictly allows production frontend domains and handles OPTIONS
-  app.use(cors({ origin: ['https://lead.codernest.cloud', 'https://app.codernest.cloud', 'http://localhost:3000'], methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'], credentials: true }));
+  // Security headers (after CORS so CORS headers aren't overwritten)
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
 
   // Body parsers
   app.use(express.json({ limit: '10mb' }));
