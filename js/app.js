@@ -1195,7 +1195,7 @@ class LeadPulseApp {
         body: JSON.stringify({
           userId: "test-user-001",
           jobTitle: keywords, // Using keywords as jobTitle
-          maxResults: 5
+          maxResults: 10
         })
       });
 
