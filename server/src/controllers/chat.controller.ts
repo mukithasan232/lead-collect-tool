@@ -66,16 +66,24 @@ export const chatController = {
         try {
           const leadData = JSON.parse(jsonMatch[0]);
           if (leadData.user_email) {
+            // Find or create an admin user to assign the lead to
+            let adminUser = await prisma.user.findFirst();
+            if (!adminUser) {
+              adminUser = await prisma.user.create({
+                data: { email: 'admin@codernest.com' }
+              });
+            }
+
             // Save lead to database
             await prisma.lead.create({
               data: {
+                userId: adminUser.id,
                 email: leadData.user_email,
                 name: 'Website Visitor', // Fallback name
                 company: 'Unknown',
                 jobTitle: 'Lead',
                 sourcePlatform: 'Nova AI Agent',
                 verificationStatus: 'UNVERIFIED',
-                confidence: 1.0,
                 domain: leadData.user_email.split('@')[1] || null
               }
             });
