@@ -62,31 +62,8 @@ export const scraperService = {
       console.log(`✅ [ScraperService] Fetched ${leads.length} real leads from Nubela.`);
       return leads.slice(0, count);
     } catch (error: any) {
-      console.warn(`⚠️ [ScraperService] Nubela API failed (${error.message}). Falling back to realistic mock data for demo stability.`);
-      
-      const mockFirstNames = ['Elena', 'Marcus', 'David', 'Sarah', 'James', 'Priya', 'Michael', 'Emma', 'Alex', 'Rachel'];
-      const mockLastNames = ['Rostova', 'Chen', 'Kim', 'Miller', 'O\'Connor', 'Patel', 'Johnson', 'Wright', 'Martinez', 'Lee'];
-      const mockCompanies = ['Acme Corp', 'TechFlow', 'GlobalSys', 'Quantum Data', 'Nexus Industries', 'CloudScale', 'Innovate LLC', 'BlueOcean', 'FinTech Solutions', 'DevWorks'];
-      
-      const fallbackLeads: EnrichedLead[] = Array.from({ length: count }).map((_, i) => {
-        const first = mockFirstNames[Math.floor(Math.random() * mockFirstNames.length)];
-        const last = mockLastNames[Math.floor(Math.random() * mockLastNames.length)];
-        const company = mockCompanies[Math.floor(Math.random() * mockCompanies.length)];
-        return {
-          name: `${first} ${last}`,
-          jobTitle: jobTitle && jobTitle !== 'All' ? jobTitle : (i % 2 === 0 ? 'Senior Engineer' : 'Product Manager'),
-          company: company,
-          email: null,
-          linkedinUrl: `https://linkedin.com/in/${first.toLowerCase()}-${last.toLowerCase()}-${Math.floor(Math.random() * 10000)}`,
-          location: location && location !== 'Global' ? location : 'San Francisco, CA',
-          industry: industry && industry !== 'All' ? industry : 'Software',
-          domain: `${company.replace(/\s+/g, '').toLowerCase()}.com`,
-          sourcePlatform: 'LinkedIn',
-          confidence: 0.98,
-          verificationStatus: 'UNVERIFIED',
-        };
-      });
-      return fallbackLeads;
+      console.error(`❌ [ScraperService] Nubela API failed:`, error.message);
+      throw new Error("API Limit Reached or Invalid Key: " + error.message);
     }
   },
 };
