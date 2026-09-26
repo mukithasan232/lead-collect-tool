@@ -62,7 +62,7 @@ export const scraperService = {
       console.log(`✅ [ScraperService] Fetched ${leads.length} real leads from Nubela.`);
       return leads.slice(0, count);
     } catch (error: any) {
-      console.error(`❌ [ScraperService] Nubela API failed:`, error.message);
+      console.error(`❌ [ScraperService] Nubela API failed:`, error.response?.data || error.message);
       throw new Error("API Limit Reached or Invalid Key: " + error.message);
     }
   },
