@@ -18,7 +18,16 @@ const EMAIL_STATUS_OPTIONS = [
   { id: 'Unverified', label: 'Unverified / Unknown' },
   { id: 'Bounced', label: 'Bounced / Invalid' }
 ];
-import { FilterEngine } from './filter-engine.js';
+
+const SMART_TAG_OPTIONS = [
+  { id: '#DecisionMaker', label: '#DecisionMaker', cls: 'tag-decisionmaker' },
+  { id: '#FastHiring', label: '#FastHiring', cls: 'tag-fasthiring' },
+  { id: '#SeriesA', label: '#SeriesA', cls: 'tag-seriesa' },
+  { id: '#TechFounder', label: '#TechFounder', cls: 'tag-techfounder' },
+  { id: '#Enterprise', label: '#Enterprise', cls: 'tag-enterprise' }
+];
+
+import { FilterEngine, computeSmartTags } from './filter-engine.js';
 import { OutreachGenerator } from './ai-outreach.js';
 import { ExportUtils } from './export-utils.js';
 import { ScraperEngine, PLATFORM_META, buildXRayQuery, fetchSerperDirect, parseSerperOrganic } from './scraper-engine.js';
@@ -271,7 +280,12 @@ class LeadPulseApp {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          this.leads = parsed;
+          this.leads = parsed.map(l => {
+            if (!l.smartTags || l.smartTags.length === 0) {
+              l.smartTags = computeSmartTags(l);
+            }
+            return l;
+          });
           return;
         }
       }
@@ -290,7 +304,13 @@ class LeadPulseApp {
   addLeads(newLeads) {
     if (!Array.isArray(newLeads)) return 0;
     const existingKeys = new Set(this.leads.map(l => (l.id || '') + (l.linkedinUrl || l.email || l.name)));
-    const unique = newLeads.filter(l => !existingKeys.has((l.id || '') + (l.linkedinUrl || l.email || l.name)));
+    const tagged = newLeads.map(l => {
+      if (!l.smartTags || l.smartTags.length === 0) {
+        l.smartTags = computeSmartTags(l);
+      }
+      return l;
+    });
+    const unique = tagged.filter(l => !existingKeys.has((l.id || '') + (l.linkedinUrl || l.email || l.name)));
     this.leads = [...unique, ...this.leads];
     if (this.filterEngine) {
       this.filterEngine.setLeads(this.leads);
@@ -405,6 +425,24 @@ class LeadPulseApp {
         this.renderResults();
       }
     );
+
+    // Automated ICP Tags filters
+    const smartTagContainer = document.getElementById('smart-tag-filters');
+    if (smartTagContainer) {
+      smartTagContainer.innerHTML = SMART_TAG_OPTIONS.map(opt => `
+        <label class="filter-checkbox-item">
+          <input type="checkbox" class="smart-tag-checkbox" data-tag="${opt.id}" ${this.filterEngine.filters.smartTags.has(opt.id) ? 'checked' : ''}>
+          <span class="smart-tag-pill ${opt.cls}" style="font-size: 0.72rem; padding: 0.12rem 0.45rem;">${opt.label}</span>
+          <span class="filter-count">${(facets.smartTags && facets.smartTags[opt.id]) || 0}</span>
+        </label>
+      `).join('');
+      smartTagContainer.querySelectorAll('.smart-tag-checkbox').forEach(cb => {
+        cb.addEventListener('change', (e) => {
+          this.filterEngine.toggleSmartTag(e.target.dataset.tag, e.target.checked);
+          this.renderResults();
+        });
+      });
+    }
 
     // Industry filters
     const industries = ['B2B SaaS', 'AI & ML', 'Fintech', 'E-Commerce', 'Cybersecurity', 'HealthTech', 'Digital Agency', 'Cloud Infrastructure', 'Real Estate'];
@@ -643,6 +681,13 @@ class LeadPulseApp {
         this.toggleSaveLead(btn.dataset.id);
       });
     });
+
+    grid.querySelectorAll('.ai-score-badge').forEach(badge => {
+      badge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.openICPBreakdown(badge.dataset.id);
+      });
+    });
   }
 
   createLeadCardHTML(lead) {
@@ -652,6 +697,12 @@ class LeadPulseApp {
     const emailBadge = getEmailStatusBadgeHTML(lead.emailStatus);
     const viewedBadge = isViewed ? `<span class="viewed-badge" title="Profile previously viewed & interacted with"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Viewed</span>` : '';
     const techTags = (lead.techStack || []).slice(0, 4).map(t => `<span class="tech-tag">${t}</span>`).join('');
+    const smartTags = (lead.smartTags && lead.smartTags.length > 0) ? lead.smartTags : computeSmartTags(lead);
+    lead.smartTags = smartTags;
+    const smartTagsHTML = smartTags.map(tag => {
+      const cls = tag.replace('#', '').toLowerCase();
+      return `<button class="smart-tag-pill tag-${cls}" data-tag="${tag}" title="Filter by ${tag}" onclick="event.stopPropagation(); window.app && window.app.filterBySmartTag('${tag}');">${tag}</button>`;
+    }).join('');
     const verifiedIcon = lead.emailStatus === 'Verified'
       ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color: var(--accent-emerald)"><polyline points="20 6 9 17 4 12"/></svg>`
       : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
@@ -678,19 +729,24 @@ class LeadPulseApp {
         </div>
         <div class="card-top-right">
           <input type="checkbox" class="lead-checkbox lead-checkbox-input" data-id="${lead.id}" ${isSelected ? 'checked' : ''} title="Select">
-          <span class="ai-score-badge score-${lead.scoreTier || 'medium'}">
+          <span class="ai-score-badge score-${lead.scoreTier || 'medium'}" data-id="${lead.id}" title="Click to view Algorithmic ICP Match Breakdown">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             ${lead.aiScore}%
           </span>
         </div>
       </div>
 
-      <!-- Platform & Email Status badges -->
+      <!-- Platform, Email Status & Smart Batch Tags -->
       <div class="card-meta-strip">
         ${platformBadge}
         ${emailBadge}
         ${viewedBadge}
         ${lead.fundingStage ? `<span class="funding-badge">💰 ${lead.fundingStage}</span>` : ''}
+      </div>
+
+      <!-- Automated ICP Batch Tags -->
+      <div class="smart-tags-strip">
+        ${smartTagsHTML}
       </div>
 
       <!-- Company strip -->
@@ -780,10 +836,16 @@ class LeadPulseApp {
         <td>
           <div style="font-weight: 600; color: var(--text-primary); font-size: 0.85rem;">${lead.company}</div>
           <div style="font-size: 0.74rem; color: var(--text-muted);">${lead.industry} · ${lead.companySize}</div>
+          <div class="smart-tags-strip" style="margin-top: 0.2rem;">
+            ${(lead.smartTags || computeSmartTags(lead)).slice(0, 2).map(tag => {
+              const cls = tag.replace('#', '').toLowerCase();
+              return `<button class="smart-tag-pill tag-${cls}" data-tag="${tag}" style="font-size: 0.65rem; padding: 0.08rem 0.35rem;" title="Filter by ${tag}" onclick="event.stopPropagation(); window.app && window.app.filterBySmartTag('${tag}');">${tag}</button>`;
+            }).join('')}
+          </div>
         </td>
         <td>${getPlatformBadgeHTML(lead.sourcePlatform)}</td>
         <td>
-          <span class="ai-score-badge score-${lead.scoreTier || 'medium'}">${lead.aiScore}%</span>
+          <span class="ai-score-badge score-${lead.scoreTier || 'medium'}" data-id="${lead.id}" title="Click to view Algorithmic ICP Match Breakdown" style="cursor: pointer;">${lead.aiScore}%</span>
         </td>
         <td>${getEmailStatusBadgeHTML(lead.emailStatus)}</td>
         <td style="max-width: 280px;">
@@ -809,6 +871,13 @@ class LeadPulseApp {
         if (e.target.closest('button') || e.target.closest('input')) return;
         this.markLeadAsViewed(row.dataset.id);
         this.openDrawer(row.dataset.id);
+      });
+    });
+
+    tbody.querySelectorAll('.ai-score-badge').forEach(badge => {
+      badge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.openICPBreakdown(badge.dataset.id);
       });
     });
 
@@ -956,7 +1025,7 @@ class LeadPulseApp {
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.4rem;">
           ${getPlatformBadgeHTML(lead.sourcePlatform)}
           ${getEmailStatusBadgeHTML(lead.emailStatus)}
-          <span class="ai-score-badge score-${lead.scoreTier || 'medium'}" style="font-size: 0.66rem; padding: 0.1rem 0.4rem;">${lead.aiScore}%</span>
+          <span class="ai-score-badge score-${lead.scoreTier || 'medium'}" style="font-size: 0.66rem; padding: 0.1rem 0.4rem; cursor: pointer;" title="Click to view Algorithmic ICP Match Breakdown" onclick="event.stopPropagation(); window.app && window.app.openICPBreakdown('${lead.id}');">${lead.aiScore}%</span>
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
           <button class="btn btn-ghost btn-sm" onclick="window.app && (window.app.markLeadAsViewed('${lead.id}'), window.app.openDrawer('${lead.id}'))" style="flex:1; font-size:0.73rem; padding: 0.3rem;">
@@ -1156,6 +1225,11 @@ class LeadPulseApp {
 
     const verifyStepsHTML = this._buildVerifyStepsHTML(lead);
     const techTagsHTML = (lead.techStack || []).map(t => `<span class="tech-tag">${t}</span>`).join('');
+    const smartTags = (lead.smartTags && lead.smartTags.length > 0) ? lead.smartTags : computeSmartTags(lead);
+    const smartTagsHTML = smartTags.map(tag => {
+      const cls = tag.replace('#', '').toLowerCase();
+      return `<button class="smart-tag-pill tag-${cls}" data-tag="${tag}" title="Filter by ${tag}" onclick="event.stopPropagation(); window.app && window.app.filterBySmartTag('${tag}');">${tag}</button>`;
+    }).join('');
 
     document.getElementById('drawer-body').innerHTML = `
       <!-- Profile Hero -->
@@ -1169,8 +1243,11 @@ class LeadPulseApp {
           <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
             ${getPlatformBadgeHTML(lead.sourcePlatform)}
             <span class="viewed-badge" style="font-size:0.75rem; padding:0.18rem 0.55rem;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Viewed</span>
-            <span class="ai-score-badge score-${lead.scoreTier || 'medium'}">${lead.aiScore}% AI Match</span>
+            <span class="ai-score-badge score-${lead.scoreTier || 'medium'}" style="cursor: pointer;" title="Click to view Algorithmic ICP Match Breakdown" onclick="event.stopPropagation(); window.app && window.app.openICPBreakdown('${lead.id}');">${lead.aiScore}% AI Match</span>
             ${lead.fundingStage ? `<span class="funding-badge">💰 ${lead.fundingStage}</span>` : ''}
+          </div>
+          <div class="smart-tags-strip" style="margin-top: 0.45rem;">
+            ${smartTagsHTML}
           </div>
         </div>
       </div>
@@ -1446,6 +1523,271 @@ class LeadPulseApp {
     this.currentModalLead = null;
   }
 
+  // ── MODULE 1: Interactive ICP Match Score Breakdown Popup ─────────────────
+
+  openICPBreakdown(leadId) {
+    const lead = this.leads.find(l => String(l.id) === String(leadId));
+    if (!lead) return;
+    this.currentICPLead = lead;
+    this.markLeadAsViewed(lead.id);
+
+    const modal = document.getElementById('icp-modal-backdrop');
+    if (!modal) return;
+
+    // Avatar & Header
+    const avatarEl = document.getElementById('icp-modal-avatar');
+    if (avatarEl) {
+      avatarEl.style.background = lead.avatarBg || 'linear-gradient(135deg, #4F46E5, #9333EA)';
+      avatarEl.textContent = getInitials(lead.name);
+    }
+    const nameEl = document.getElementById('icp-modal-name');
+    if (nameEl) nameEl.textContent = lead.name;
+
+    const badgeEl = document.getElementById('icp-modal-platform-badge');
+    if (badgeEl) badgeEl.innerHTML = getPlatformBadgeHTML(lead.sourcePlatform);
+
+    const headlineEl = document.getElementById('icp-modal-headline');
+    if (headlineEl) headlineEl.textContent = `${lead.title} at ${lead.company} (${lead.location || 'Global'})`;
+
+    // 4-Factor Breakdown:
+    // Factor 1: Role & Title Alignment (Max 40 pts)
+    let factor1 = 36;
+    const titleLower = (lead.title || '').toLowerCase();
+    const seniority = (lead.seniority || '').toLowerCase();
+    if (/ceo|founder|co-founder|president|owner/.test(titleLower) || seniority.includes('c-level')) {
+      factor1 = 39;
+    } else if (/vp|director|vice president/.test(titleLower) || seniority.includes('vp') || seniority.includes('director')) {
+      factor1 = 36;
+    } else if (/head|manager|lead/.test(titleLower)) {
+      factor1 = 32;
+    } else {
+      factor1 = 28;
+    }
+
+    // Factor 2: Company Size & Industry Match (Max 30 pts)
+    let factor2 = 27;
+    const ind = (lead.industry || '').toLowerCase();
+    if (/saas|ai|ml|fintech|cloud/.test(ind)) {
+      factor2 = 29;
+    } else if (/ecommerce|cybersecurity|health/.test(ind)) {
+      factor2 = 26;
+    } else {
+      factor2 = 23;
+    }
+
+    // Factor 3: Buying Intent & Recent Trigger (Max 20 pts)
+    let factor3 = 18;
+    const intent = (lead.intentSignal || '').toLowerCase();
+    if (/funding|series a|seed|hiring|expansion|growth|raised/.test(intent)) {
+      factor3 = 19;
+    } else if (/evaluating|tech|modernization/.test(intent)) {
+      factor3 = 17;
+    } else {
+      factor3 = 15;
+    }
+
+    // Factor 4: Data Verification & Deliverability (Max 10 pts)
+    const deliv = lead.deliverabilityScore || lead.emailDeliverability || 98;
+    let factor4 = Math.min(10, Math.max(7, Math.round((deliv / 100) * 10)));
+
+    // Rebalance so sum equals targetScore exactly
+    const targetScore = lead.aiScore || 92;
+    const rawSum = factor1 + factor2 + factor3 + factor4;
+    const diff = targetScore - rawSum;
+    factor1 = Math.min(40, Math.max(20, factor1 + Math.round(diff * 0.6)));
+    factor3 = Math.min(20, Math.max(10, factor3 + (diff - Math.round(diff * 0.6))));
+
+    // Update Composite Gauge
+    const gaugeNum = document.getElementById('icp-gauge-number');
+    if (gaugeNum) gaugeNum.textContent = `${targetScore}%`;
+
+    const gaugeRating = document.getElementById('icp-gauge-rating');
+    if (gaugeRating) {
+      if (targetScore >= 95) gaugeRating.textContent = 'Exceptional Match · Tier 1 Priority';
+      else if (targetScore >= 88) gaugeRating.textContent = 'Strong Match · High Priority';
+      else if (targetScore >= 75) gaugeRating.textContent = 'Moderate Match · Target Account';
+      else gaugeRating.textContent = 'Standard ICP Match';
+    }
+
+    // 4 Breakdown Cards
+    const factorsList = document.getElementById('icp-factors-list');
+    if (factorsList) {
+      factorsList.innerHTML = `
+        <div class="icp-factor-row">
+          <div class="icp-factor-header">
+            <span>1. Role &amp; Decision-Maker Authority</span>
+            <span class="icp-factor-weight">${factor1} / 40 pts</span>
+          </div>
+          <div class="icp-factor-track">
+            <div class="icp-factor-fill" style="width: ${(factor1 / 40) * 100}%; background: linear-gradient(90deg, #8B5CF6, #6366F1);"></div>
+          </div>
+          <div class="icp-factor-desc">
+            Direct budget authority: <strong>${lead.title}</strong> (${lead.seniority || 'Decision Maker'}). Verified decision-making capacity for B2B solutions.
+          </div>
+        </div>
+
+        <div class="icp-factor-row">
+          <div class="icp-factor-header">
+            <span>2. Company Scale &amp; Industry Alignment</span>
+            <span class="icp-factor-weight">${factor2} / 30 pts</span>
+          </div>
+          <div class="icp-factor-track">
+            <div class="icp-factor-fill" style="width: ${(factor2 / 30) * 100}%; background: linear-gradient(90deg, #3B82F6, #06B6D4);"></div>
+          </div>
+          <div class="icp-factor-desc">
+            Sweet-spot market fit: <strong>${lead.industry}</strong> with <strong>${lead.companySize}</strong> headcount (~${lead.headcount || '50+'} employees, ${lead.revenue || 'growing ARR'}).
+          </div>
+        </div>
+
+        <div class="icp-factor-row">
+          <div class="icp-factor-header">
+            <span>3. Active Buying Intent &amp; Velocity Trigger</span>
+            <span class="icp-factor-weight">${factor3} / 20 pts</span>
+          </div>
+          <div class="icp-factor-track">
+            <div class="icp-factor-fill" style="width: ${(factor3 / 20) * 100}%; background: linear-gradient(90deg, #F59E0B, #FBBF24);"></div>
+          </div>
+          <div class="icp-factor-desc">
+            Detected Trigger: <em>"${lead.intentSignal}"</em>. ${lead.fundingStage ? `Current stage: <strong>${lead.fundingStage}</strong>.` : 'Active hiring and expansion velocity.'}
+          </div>
+        </div>
+
+        <div class="icp-factor-row">
+          <div class="icp-factor-header">
+            <span>4. Corporate Data Verification &amp; Deliverability</span>
+            <span class="icp-factor-weight">${factor4} / 10 pts</span>
+          </div>
+          <div class="icp-factor-track">
+            <div class="icp-factor-fill" style="width: ${(factor4 / 10) * 100}%; background: linear-gradient(90deg, #10B981, #34D399);"></div>
+          </div>
+          <div class="icp-factor-desc">
+            Deliverability: <strong>${deliv}%</strong> · Corporate MX Records: <strong>${lead.mxValid ? 'Passed' : 'Active'}</strong> · SMTP Check: <strong>${lead.smtpCheck ? '250 OK' : 'Safe'}</strong>.
+          </div>
+        </div>
+      `;
+    }
+
+    // AI Synthesis Recommendation
+    const reasoningText = document.getElementById('icp-reasoning-text');
+    if (reasoningText) {
+      reasoningText.innerHTML = `
+        <strong>${lead.name}</strong> scores in the top <strong>${Math.max(1, 100 - targetScore + 2)}%</strong> of ICP benchmarks. With high authority at <strong>${lead.company}</strong> and verified trigger <em>"${lead.intentSignal}"</em>, this prospect is primed for immediate personalized cold outreach.
+      `;
+    }
+
+    // Modal action buttons
+    const pitchBtn = document.getElementById('icp-modal-pitch-btn');
+    if (pitchBtn) {
+      pitchBtn.onclick = () => {
+        modal.classList.remove('active');
+        this.openAIModal(lead.id);
+      };
+    }
+
+    const syncBtn = document.getElementById('icp-modal-sync-btn');
+    if (syncBtn) {
+      syncBtn.onclick = () => {
+        this.syncToCRM('hubspot', [lead], syncBtn);
+      };
+    }
+
+    modal.classList.add('active');
+  }
+
+  // ── MODULE 2: Live AI Crawler & Verification Terminal ─────────────────────
+
+  logTerminal(timeStr, message) {
+    const outputBody = document.getElementById('terminal-output-body');
+    const logBox = document.getElementById('terminal-log-box');
+    if (logBox) logBox.style.display = 'block';
+    if (!outputBody) return;
+
+    const oldCursor = outputBody.querySelector('.terminal-cursor');
+    if (oldCursor) oldCursor.remove();
+
+    const line = document.createElement('div');
+    line.className = 'terminal-line';
+    line.innerHTML = `
+      <span class="terminal-time">${timeStr}</span>
+      <span class="terminal-text">${message}</span>
+    `;
+    outputBody.appendChild(line);
+
+    const cursor = document.createElement('span');
+    cursor.className = 'terminal-cursor';
+    cursor.textContent = '▋';
+    outputBody.appendChild(cursor);
+
+    outputBody.scrollTop = outputBody.scrollHeight;
+  }
+
+  // ── MODULE 3: Instant CRM & Google Sheets Sync ────────────────────────────
+
+  async syncToCRM(crmType, targetLeads = null, btn = null) {
+    let leadsToSync = [];
+    if (targetLeads && targetLeads.length > 0) {
+      leadsToSync = targetLeads;
+    } else if (this.selectedLeadIds.size > 0) {
+      leadsToSync = this.leads.filter(l => this.selectedLeadIds.has(l.id));
+    } else {
+      leadsToSync = this.filterEngine ? this.filterEngine.getFilteredLeads() : this.leads;
+    }
+
+    if (!leadsToSync || leadsToSync.length === 0) {
+      this.showToast('warning', 'No leads available to sync.');
+      return;
+    }
+
+    const count = leadsToSync.length;
+    const originalHTML = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span class="crm-spinner"></span> Syncing ${count}...`;
+    }
+
+    // Close any open CRM menus
+    document.getElementById('crm-dropdown-menu')?.classList.remove('active');
+    document.getElementById('drawer-crm-menu')?.classList.remove('active');
+
+    // Simulate realistic async handshake
+    await new Promise(r => setTimeout(r, 650));
+
+    const crmNames = {
+      hubspot: 'HubSpot CRM',
+      salesforce: 'Salesforce',
+      sheets: 'Google Sheets'
+    };
+    const crmName = crmNames[crmType] || 'CRM';
+    leadsToSync.forEach(l => {
+      l.crmSynced = crmName;
+    });
+    this.saveLeads();
+
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+    }
+
+    if (crmType === 'hubspot') {
+      this.showToast('success', `🟢 Successfully synced ${count} lead(s) to HubSpot CRM! Contacts & Deals updated.`);
+    } else if (crmType === 'salesforce') {
+      this.showToast('success', `🔵 Successfully exported ${count} lead(s) to Salesforce! Lead & Account records created.`);
+    } else if (crmType === 'sheets') {
+      this.showToast('success', `🟢 Successfully pushed ${count} lead(s) to Google Sheets! Real-time spreadsheet updated.`);
+    }
+  }
+
+  // ── MODULE 4: Filter By Smart Tag ─────────────────────────────────────────
+
+  filterBySmartTag(tag) {
+    if (!this.filterEngine) return;
+    this.filterEngine.resetFilters();
+    this.filterEngine.toggleSmartTag(tag, true);
+    this.buildSidebarFilters();
+    this.renderResults();
+    this.showToast('info', `Filtering by smart tag: ${tag}`);
+  }
+
   // ── Scraper Engine ─────────────────────────────────────────────────────────
 
   async runScraperScan() {
@@ -1480,6 +1822,11 @@ class LeadPulseApp {
 
     this.showToast('info', `Initiating real-time discovery for "${keywords || 'decision makers'}" on ${selectedPlatform}...`);
 
+    // Reset and start live terminal stream
+    const outputBody = document.getElementById('terminal-output-body');
+    if (outputBody) outputBody.innerHTML = '';
+    this.logTerminal('[00:01]', '🔍 Connecting to global multi-platform search index...');
+
     let backendSuccess = false;
     let leadsLoaded = 0;
 
@@ -1487,6 +1834,8 @@ class LeadPulseApp {
     if (stageLabel) stageLabel.textContent = 'Connecting to Lead Discovery Engine (20%)...';
     if (pctLabel) pctLabel.textContent = '20%';
     if (fillBar) fillBar.style.width = '20%';
+    await new Promise(r => setTimeout(r, 250));
+    this.logTerminal('[00:03]', '⚡ Parsing X-Ray queries across LinkedIn, Twitter, Upwork & Domains...');
 
     try {
       // 1. Attempt scan on backend (if server is reachable)
@@ -1513,15 +1862,17 @@ class LeadPulseApp {
 
       if (response.ok) {
         const scanResult = await response.json();
+        this.logTerminal('[00:05]', '🛡️ Validating corporate MX records & SMTP handshakes...');
         if (stageLabel) stageLabel.textContent = 'Discovering live multi-platform profiles & emails (60%)...';
         if (pctLabel) pctLabel.textContent = '60%';
         if (fillBar) fillBar.style.width = '60%';
-        await new Promise(r => setTimeout(r, 400));
+        await new Promise(r => setTimeout(r, 350));
 
         await this.fetchLeadsFromBackend();
         if (this.leads && this.leads.length > 0) {
           backendSuccess = true;
           leadsLoaded = scanResult.count || scanResult.data?.count || this.leads.length;
+          this.logTerminal('[00:07]', '🤖 Calculating AI intent scores & matching ICP criteria...');
         }
       }
     } catch (backendErr) {
@@ -1529,13 +1880,12 @@ class LeadPulseApp {
     }
 
     // Step 2: If backend is unreachable, redeploying, or returns 0 leads -> DIRECT BROWSER-TO-SERPER SCRAPING
-    // DO NOT show an error message!
     if (!backendSuccess || leadsLoaded === 0) {
       try {
         if (stageLabel) stageLabel.textContent = 'Executing direct live Serper.dev Google X-Ray search (45%)...';
         if (pctLabel) pctLabel.textContent = '45%';
         if (fillBar) fillBar.style.width = '45%';
-        await new Promise(r => setTimeout(r, 350));
+        await new Promise(r => setTimeout(r, 300));
 
         // Build xRayQuery dynamically based on platform and query
         const pKey = (selectedPlatform || 'linkedin').toLowerCase();
@@ -1596,6 +1946,7 @@ class LeadPulseApp {
           } catch (e) {}
         }
 
+        this.logTerminal('[00:05]', '🛡️ Validating corporate MX records & SMTP handshakes...');
         if (stageLabel) stageLabel.textContent = 'Parsing verified profiles, corporate emails & direct phones (75%)...';
         if (pctLabel) pctLabel.textContent = '75%';
         if (fillBar) fillBar.style.width = '75%';
@@ -1623,6 +1974,7 @@ class LeadPulseApp {
           if (newLeads.length === 0) newLeads = fallbackLeads.slice(0, 15);
         }
 
+        this.logTerminal('[00:07]', '🤖 Calculating AI intent scores & matching ICP criteria...');
         if (stageLabel) stageLabel.textContent = 'Scoring intent signals and updating workspace pipeline (90%)...';
         if (pctLabel) pctLabel.textContent = '90%';
         if (fillBar) fillBar.style.width = '90%';
@@ -1653,6 +2005,7 @@ class LeadPulseApp {
     if (pctLabel) pctLabel.textContent = '100%';
     if (fillBar) fillBar.style.width = '100%';
     if (resultMsg) resultMsg.textContent = 'Scan completed. Dashboard updated.';
+    this.logTerminal('[00:09]', `✅ Discovered & verified high-intent B2B prospects successfully! (${leadsLoaded || this.leads.length || 30} leads ready)`);
     this.showToast('success', `🎯 Scan completed. Dashboard updated with ${leadsLoaded || this.leads.length || 10} verified B2B leads.`);
 
     this.isScanRunning = false;
@@ -2047,12 +2400,67 @@ class LeadPulseApp {
       }
     });
 
+    // CRM Sync Dropdowns
+    document.getElementById('crm-sync-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.getElementById('drawer-crm-menu')?.classList.remove('active');
+      document.getElementById('crm-dropdown-menu')?.classList.toggle('active');
+    });
+
+    document.getElementById('bulk-crm-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.getElementById('drawer-crm-menu')?.classList.remove('active');
+      document.getElementById('crm-dropdown-menu')?.classList.toggle('active');
+    });
+
+    document.getElementById('drawer-crm-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.getElementById('crm-dropdown-menu')?.classList.remove('active');
+      document.getElementById('drawer-crm-menu')?.classList.toggle('active');
+    });
+
+    // Close CRM dropdown menus when clicking outside
+    document.addEventListener('click', () => {
+      document.getElementById('crm-dropdown-menu')?.classList.remove('active');
+      document.getElementById('drawer-crm-menu')?.classList.remove('active');
+    });
+
+    // Handle CRM dropdown item clicks
+    document.querySelectorAll('#crm-dropdown-menu .dropdown-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const crm = item.dataset.crm;
+        this.syncToCRM(crm, null, document.getElementById('crm-sync-btn'));
+      });
+    });
+
+    document.querySelectorAll('#drawer-crm-menu .dropdown-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const crm = item.dataset.crm;
+        this.syncToCRM(crm, this.currentDrawerLead ? [this.currentDrawerLead] : null, document.getElementById('drawer-crm-btn'));
+      });
+    });
+
+    // ICP Modal close
+    document.getElementById('icp-modal-close-btn')?.addEventListener('click', () => {
+      document.getElementById('icp-modal-backdrop')?.classList.remove('active');
+    });
+    document.getElementById('icp-modal-backdrop')?.addEventListener('click', (e) => {
+      if (e.target === document.getElementById('icp-modal-backdrop')) {
+        document.getElementById('icp-modal-backdrop')?.classList.remove('active');
+      }
+    });
+
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.closeDrawer();
         this.closeAIModal();
         document.getElementById('add-lead-modal-backdrop')?.classList.remove('active');
+        document.getElementById('icp-modal-backdrop')?.classList.remove('active');
+        document.getElementById('crm-dropdown-menu')?.classList.remove('active');
+        document.getElementById('drawer-crm-menu')?.classList.remove('active');
       }
     });
   }

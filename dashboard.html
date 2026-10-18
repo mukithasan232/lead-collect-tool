@@ -151,6 +151,26 @@
               </div>
               <span class="scraper-result-message" id="scraper-result-msg"></span>
             </div>
+
+            <!-- Live AI Crawler & Verification Terminal -->
+            <div class="terminal-log-container" id="terminal-log-box" style="display: none;">
+              <div class="terminal-header">
+                <div class="terminal-window-controls">
+                  <span class="control-dot dot-red"></span>
+                  <span class="control-dot dot-yellow"></span>
+                  <span class="control-dot dot-green"></span>
+                </div>
+                <div class="terminal-title">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                  <span>LEADPULSE REAL-TIME X-RAY CRAWLER &amp; VERIFICATION STREAM</span>
+                </div>
+                <div class="terminal-status-badge">
+                  <span class="live-dot pulse"></span>
+                  <span>LIVE FEED</span>
+                </div>
+              </div>
+              <div class="terminal-body" id="terminal-output-body"></div>
+            </div>
           </div>
         </div>
 
@@ -210,6 +230,14 @@
             <div class="filter-group">
               <span class="filter-group-title">Source Platform</span>
               <div class="filter-options-list" id="platform-filters">
+                <!-- Dynamically generated -->
+              </div>
+            </div>
+
+            <!-- Automated ICP Tags Filter Group (NEW) -->
+            <div class="filter-group">
+              <span class="filter-group-title">Automated ICP Tags</span>
+              <div class="filter-options-list" id="smart-tag-filters">
                 <!-- Dynamically generated -->
               </div>
             </div>
@@ -315,6 +343,25 @@
                   </button>
                 </div>
 
+                <!-- Instant CRM & Sheets Sync Dropdown -->
+                <div class="dropdown-wrap" id="crm-sync-dropdown-wrap" style="position: relative;">
+                  <button class="btn btn-secondary btn-sm" id="crm-sync-btn" title="Sync leads to CRM or Google Sheets">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+                    Sync to CRM ▾
+                  </button>
+                  <div class="dropdown-menu crm-dropdown-menu" id="crm-dropdown-menu" style="display: none;">
+                    <button class="dropdown-item" data-crm="hubspot">
+                      <span class="crm-dot hubspot">●</span> Sync to HubSpot CRM
+                    </button>
+                    <button class="dropdown-item" data-crm="salesforce">
+                      <span class="crm-dot salesforce">●</span> Export to Salesforce
+                    </button>
+                    <button class="dropdown-item" data-crm="sheets">
+                      <span class="crm-dot sheets">●</span> Push to Google Sheets
+                    </button>
+                  </div>
+                </div>
+
                 <!-- Export Dropdown -->
                 <button class="btn btn-secondary btn-sm" id="export-csv-btn" title="Export visible leads to CSV">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -331,6 +378,10 @@
                 <button class="btn btn-secondary btn-sm" id="bulk-save-btn">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                   Save to Pipeline
+                </button>
+                <button class="btn btn-secondary btn-sm" id="bulk-crm-btn" title="Sync selected leads to CRM">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+                  Sync to CRM ▾
                 </button>
                 <button class="btn btn-secondary btn-sm" id="bulk-json-btn">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
@@ -544,6 +595,23 @@
         </div>
 
         <div class="drawer-footer">
+          <div class="dropdown-wrap" id="drawer-crm-dropdown-wrap" style="position: relative;">
+            <button class="btn btn-secondary" id="drawer-crm-btn" title="Sync this prospect to CRM or Sheets">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+              Sync to CRM ▾
+            </button>
+            <div class="dropdown-menu crm-dropdown-menu drawer-crm-menu" id="drawer-crm-menu" style="display: none; bottom: 100%; top: auto; margin-bottom: 6px;">
+              <button class="dropdown-item" data-crm="hubspot">
+                <span class="crm-dot hubspot">●</span> Sync to HubSpot CRM
+              </button>
+              <button class="dropdown-item" data-crm="salesforce">
+                <span class="crm-dot salesforce">●</span> Export to Salesforce
+              </button>
+              <button class="dropdown-item" data-crm="sheets">
+                <span class="crm-dot sheets">●</span> Push to Google Sheets
+              </button>
+            </div>
+          </div>
           <button class="btn btn-secondary" id="drawer-save-pipeline-btn">
             Save to Pipeline
           </button>
@@ -836,6 +904,65 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- ICP MATCH SCORE BREAKDOWN POPUP MODAL -->
+    <div class="modal-backdrop" id="icp-modal-backdrop">
+      <div class="modal-dialog icp-breakdown-dialog" role="dialog" aria-modal="true" aria-label="Algorithmic ICP Match Breakdown">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="icp-modal-avatar" id="icp-modal-avatar">DM</div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <h3 style="font-size: 1.15rem; margin-bottom: 0.1rem;" id="icp-modal-name">Prospect Name</h3>
+                <span id="icp-modal-platform-badge"></span>
+              </div>
+              <span style="font-size: 0.8rem; color: var(--text-secondary);" id="icp-modal-headline">VP at Company</span>
+            </div>
+          </div>
+          <button class="btn btn-ghost btn-icon" id="icp-modal-close-btn" title="Close modal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div class="modal-body" style="gap: 1.25rem;">
+          <!-- Top Composite Gauge Card -->
+          <div class="icp-gauge-card">
+            <div class="icp-gauge-left">
+              <div class="icp-gauge-number" id="icp-gauge-number">96%</div>
+              <div class="icp-gauge-rating" id="icp-gauge-rating">Exceptional Match · Tier 1 Priority</div>
+            </div>
+            <div class="icp-gauge-right">
+              <div class="icp-gauge-title">Predictive Algorithmic ICP Fit</div>
+              <div class="icp-gauge-desc">LeadPulse neural scoring analyzes title authority, corporate scale, buying intent velocity, and deliverability guarantees.</div>
+            </div>
+          </div>
+
+          <!-- 4 Weighted Factor Breakdown Bars -->
+          <div class="icp-factors-list" id="icp-factors-list">
+            <!-- Dynamically populated -->
+          </div>
+
+          <!-- AI ICP Analysis Synthesis Box -->
+          <div class="icp-reasoning-card">
+            <div class="icp-reasoning-header">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/></svg>
+              <span>Algorithmic Outbound Recommendation</span>
+            </div>
+            <p class="icp-reasoning-text" id="icp-reasoning-text"></p>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="justify-content: space-between;">
+          <span style="font-size: 0.75rem; color: var(--text-muted);">
+            Neural Scoring Engine v3.4 · 100% Real-Time B2B Index
+          </span>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary btn-sm" id="icp-modal-sync-btn">Sync to CRM</button>
+            <button class="btn btn-primary btn-sm" id="icp-modal-pitch-btn">✨ Generate AI Pitch</button>
+          </div>
+        </div>
       </div>
     </div>
 

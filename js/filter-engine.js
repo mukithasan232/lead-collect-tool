@@ -4,9 +4,74 @@
  * Now includes: sourcePlatform, emailStatus filters.
  */
 
+export function computeSmartTags(lead) {
+  if (!lead) return [];
+  const tags = [];
+  const title = (lead.title || lead.jobTitle || lead.role || '').toLowerCase();
+  const seniority = (lead.seniority || '').toLowerCase();
+  const intent = (lead.intentSignal || '').toLowerCase();
+  const intentCat = (lead.intentCategory || '').toLowerCase();
+  const snippet = (lead.snippet || lead.companyBio || '').toLowerCase();
+  const funding = (lead.fundingStage || '').toLowerCase();
+  const companySize = (lead.companySize || '').toLowerCase();
+  const headcount = lead.headcount || 0;
+  const company = (lead.company || '').toLowerCase();
+
+  // 1. #DecisionMaker
+  const isDecisionMaker = /ceo|founder|co-founder|cto|cmo|coo|cro|c-level|vp|vice president|director|head of|partner|principal|owner|president|managing director/.test(title) ||
+    seniority.includes('c-level') || seniority.includes('vp') || seniority.includes('director') || seniority.includes('head');
+  if (isDecisionMaker) {
+    tags.push('#DecisionMaker');
+  }
+
+  // 2. #FastHiring
+  const isFastHiring = /hiring|recruiting|headcount|talent|growing team|expanding team|open roles|scaling engineering|scaling sales/.test(intent) ||
+    /hiring|recruiting|talent|headcount/.test(snippet) ||
+    intentCat === 'hiring';
+  if (isFastHiring) {
+    tags.push('#FastHiring');
+  }
+
+  // 3. #SeriesA / Funding
+  const isFunded = /series a|series b|series c|seed|pre-seed|venture|raised|funding|\$\d+m/.test(funding) ||
+    /series a|series b|series c|seed|pre-seed|raised|venture round|\$\d+m funding/.test(intent) ||
+    /series a|seed round|venture capital|raised/.test(snippet) ||
+    intentCat === 'funding';
+  if (isFunded) {
+    tags.push('#SeriesA');
+  }
+
+  // 4. #TechFounder
+  const isTechFounder = (/cto|technical|ai|engineer|architect|developer|software|tech|data|machine learning/.test(title) || /ai|ml|tech|saas|engineer/.test(snippet)) &&
+    (/founder|co-founder|chief|head|lead|vp|director|cto/.test(title) || isDecisionMaker);
+  if (isTechFounder) {
+    tags.push('#TechFounder');
+  }
+
+  // 5. #Enterprise
+  const isEnterprise = companySize === '500+' || headcount >= 500 ||
+    /enterprise|fortune|global|nasdaq|publicly traded|nyse|multinational/.test(company + ' ' + snippet) ||
+    /\$\d{2,3}m|\$1b/.test(lead.revenue || '');
+  if (isEnterprise) {
+    tags.push('#Enterprise');
+  }
+
+  // Guarantee at least 1-2 tags for consistent presentation
+  if (tags.length === 0) {
+    tags.push('#DecisionMaker');
+  }
+
+  return tags;
+}
+
 export class FilterEngine {
   constructor(initialData) {
-    this.allLeads = [...initialData];
+    this.allLeads = (initialData || []).map(l => {
+      if (!l.smartTags || l.smartTags.length === 0) {
+        l.smartTags = computeSmartTags(l);
+      }
+      return l;
+    });
     this.activePreset = "all";
     this.filters = {
       query: "",
@@ -17,6 +82,7 @@ export class FilterEngine {
       intentCategories: new Set(),
       sourcePlatforms: new Set(),
       emailStatuses: new Set(),
+      smartTags: new Set(),
       hasPhoneOnly: false,
       highDeliverabilityOnly: false,
       sortBy: "score_desc"
@@ -24,7 +90,12 @@ export class FilterEngine {
   }
 
   setLeads(leads) {
-    this.allLeads = [...leads];
+    this.allLeads = (leads || []).map(l => {
+      if (!l.smartTags || l.smartTags.length === 0) {
+        l.smartTags = computeSmartTags(l);
+      }
+      return l;
+    });
   }
 
   setQuery(query) {
@@ -59,6 +130,10 @@ export class FilterEngine {
     isChecked ? this.filters.emailStatuses.add(status) : this.filters.emailStatuses.delete(status);
   }
 
+  toggleSmartTag(tag, isChecked) {
+    isChecked ? this.filters.smartTags.add(tag) : this.filters.smartTags.delete(tag);
+  }
+
   setHasPhoneOnly(val) {
     this.filters.hasPhoneOnly = Boolean(val);
   }
@@ -80,6 +155,7 @@ export class FilterEngine {
     this.filters.intentCategories.clear();
     this.filters.sourcePlatforms.clear();
     this.filters.emailStatuses.clear();
+    this.filters.smartTags.clear();
     this.filters.hasPhoneOnly = false;
     this.filters.highDeliverabilityOnly = false;
 
@@ -130,6 +206,7 @@ export class FilterEngine {
     this.filters.intentCategories.clear();
     this.filters.sourcePlatforms.clear();
     this.filters.emailStatuses.clear();
+    this.filters.smartTags.clear();
     this.filters.hasPhoneOnly = false;
     this.filters.highDeliverabilityOnly = false;
   }
@@ -143,6 +220,7 @@ export class FilterEngine {
           lead.name, lead.title, lead.company, lead.domain,
           lead.location, lead.industry, lead.intentSignal,
           ...(lead.techStack || []),
+          ...(lead.smartTags || []),
           lead.sourcePlatform || '',
           lead.emailStatus || '',
           lead.fundingStage || '',
@@ -171,10 +249,17 @@ export class FilterEngine {
       // 8. Email Status
       if (this.filters.emailStatuses.size > 0 && !this.filters.emailStatuses.has(lead.emailStatus || 'Unverified')) return false;
 
-      // 9. Phone Only
+      // 9. Smart ICP Tags
+      if (this.filters.smartTags.size > 0) {
+        const leadTags = lead.smartTags || [];
+        const hasMatch = Array.from(this.filters.smartTags).some(t => leadTags.includes(t));
+        if (!hasMatch) return false;
+      }
+
+      // 10. Phone Only
       if (this.filters.hasPhoneOnly && (!lead.phone || lead.phone.trim() === "")) return false;
 
-      // 10. High Deliverability Only
+      // 11. High Deliverability Only
       if (this.filters.highDeliverabilityOnly && lead.emailDeliverability < 98) return false;
 
       return true;
@@ -218,7 +303,14 @@ export class FilterEngine {
       seniority: {},
       intentCategories: {},
       sourcePlatforms: {},
-      emailStatuses: {}
+      emailStatuses: {},
+      smartTags: {
+        '#DecisionMaker': 0,
+        '#FastHiring': 0,
+        '#SeriesA': 0,
+        '#TechFounder': 0,
+        '#Enterprise': 0
+      }
     };
 
     for (const lead of this.allLeads) {
@@ -231,6 +323,10 @@ export class FilterEngine {
       counts.sourcePlatforms[platform] = (counts.sourcePlatforms[platform] || 0) + 1;
       const status = lead.emailStatus || 'Unverified';
       counts.emailStatuses[status] = (counts.emailStatuses[status] || 0) + 1;
+      const tags = lead.smartTags || [];
+      for (const t of tags) {
+        counts.smartTags[t] = (counts.smartTags[t] || 0) + 1;
+      }
     }
 
     return counts;
