@@ -17,11 +17,17 @@ export interface EnrichedLead {
   email: string | null;
   linkedinUrl: string | null;
   location: string;
+  region?: string;
   industry: string;
+  companySize?: string;
+  phone?: string;
   domain: string | null;
   sourcePlatform: string;
   confidence: number; // 0–1 match confidence score
   verificationStatus?: 'VERIFIED' | 'UNVERIFIED' | 'INVALID' | 'CATCH_ALL';
   intentSignal?: string;
+  intentCategory?: string;
+  seniority?: string;
+  pipelineStage?: string;
 }
 

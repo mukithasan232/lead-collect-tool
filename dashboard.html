@@ -121,9 +121,10 @@
               <select id="scraper-platform-select" class="custom-select">
                 <option value="linkedin">LinkedIn / Sales Navigator</option>
                 <option value="twitter">Twitter / X Profiles</option>
-                <option value="upwork">Upwork / Agencies</option>
-                <option value="apollo">Apollo / Crunchbase B2B</option>
-                <option value="instagram">Instagram / Brands</option>
+                <option value="upwork">Upwork / Freelance & Agencies</option>
+                <option value="apollo">Apollo.io B2B Database</option>
+                <option value="crunchbase">Crunchbase Organizations & People</option>
+                <option value="producthunt">Product Hunt / GitHub Founders</option>
                 <option value="domain">Custom Domain / B2B Websites</option>
                 <option value="all">All Platforms (Omni-Search)</option>
               </select>
@@ -586,6 +587,10 @@
             <button class="btn btn-secondary btn-sm channel-tab" data-channel="upwork">
               Upwork Proposal
             </button>
+            <button class="btn btn-secondary btn-sm channel-tab" data-channel="sms">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Direct SMS
+            </button>
             <button class="btn btn-secondary btn-sm channel-tab" data-channel="followup">Follow-Up Note</button>
           </div>
 
@@ -849,6 +854,27 @@
         <div style="font-size:0.82rem; color:var(--text-muted,#5c6385);">API keys are stored in encrypted sessionStorage only — never transmitted in plaintext.</div>
       </div>
       <button id="close-integrations-btn" style="background:transparent; border:1px solid var(--border,rgba(255,255,255,0.08)); color:inherit; border-radius:8px; padding:0.4rem 0.7rem; cursor:pointer; font-size:1rem;">✕</button>
+    </div>
+
+    <!-- SERPER.DEV (REAL-TIME MULTI-PLATFORM ENGINE) -->
+    <div class="integration-row" data-provider="serper">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+        <div style="display:flex; align-items:center; gap:0.65rem;">
+          <div style="width:36px;height:36px;border-radius:9px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);display:flex;align-items:center;justify-content:center;font-size:1.1rem;">⚡</div>
+          <div>
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <span style="font-weight:700; font-size:0.95rem;">Serper.dev Multi-Platform Engine</span>
+              <span style="font-size:0.68rem; padding:0.15rem 0.45rem; border-radius:4px; background:rgba(16,185,129,0.2); color:#10B981; font-weight:700;">Connected & Active</span>
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted,#5c6385);">Real-Time Google SERP X-Ray across 7 platforms — Zero 404s guaranteed</div>
+          </div>
+        </div>
+        <label class="integration-toggle">
+          <input type="checkbox" class="provider-toggle" data-provider="serper" checked>
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <input type="password" class="integration-key-input" data-provider="serper" value="6f4ee01927a1bce8cd2a9ff7ca89c6ad95e885f7" placeholder="6f4ee01927a1bce8cd2a9ff7ca89c6ad95e885f7 (System Active)" style="width:100%; padding:0.6rem 0.85rem; border-radius:9px; background:rgba(255,255,255,0.05); border:1px solid var(--border,rgba(255,255,255,0.08)); color:inherit; font-size:0.84rem; margin-bottom:1rem;">
     </div>
 
     <!-- NUBELA -->

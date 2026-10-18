@@ -24,6 +24,8 @@ export class OutreachGenerator {
         return this._generateTwitterDM(lead, firstName, tone, userOffering);
       case "upwork":
         return this._generateUpworkProposal(lead, firstName, tone, userOffering);
+      case "sms":
+        return this._generateSMS(lead, firstName, tone, userOffering);
       case "followup":
         return this._generateFollowUpEmail(lead, firstName, tone, userOffering);
       default:
@@ -264,6 +266,34 @@ Just wanted to see if exploring ${userOffering} to accelerate ${lead.company}'s 
 
 Best,
 [Your Name]`;
+        break;
+    }
+
+    return { subject, body };
+  }
+
+  // ── Direct SMS Outreach ───────────────────────────────────────────────────
+  static _generateSMS(lead, firstName, tone, userOffering) {
+    const phoneTarget = lead.phone || 'Direct B2B';
+    const subject = `SMS to ${firstName} (${phoneTarget})`;
+    let body = "";
+
+    switch (tone) {
+      case "direct":
+        body = `Hi ${firstName}, saw ${lead.company} is ${lead.intentSignal?.toLowerCase() || 'scaling fast'}. We help ${lead.industry} leaders accelerate sales pipeline with ${userOffering}. Open to a brief 5-min intro call this week? - [Your Name]`;
+        break;
+
+      case "casual":
+        body = `Hey ${firstName}! Loved the latest updates on ${lead.company} 🚀 Quick question: would you be open to seeing how other ${lead.industry} teams cut outbound prospecting time in half? Let me know! - [Your Name]`;
+        break;
+
+      case "executive":
+        body = `${firstName}, as ${lead.title} at ${lead.company}, revenue velocity is key while ${lead.intentSignal?.toLowerCase() || 'scaling'}. We deliver 40%+ CAC reduction for enterprise leaders. Could we connect for 5 mins? - [Your Name]`;
+        break;
+
+      case "value_first":
+      default:
+        body = `Hi ${firstName}, noticed ${lead.company}'s growth regarding ${lead.intentSignal?.toLowerCase() || 'recent operations'}. We built a tool that cuts prospecting time by 70% for ${lead.industry} teams using ${userOffering}. Worth a 5-min chat? - [Your Name]`;
         break;
     }
 

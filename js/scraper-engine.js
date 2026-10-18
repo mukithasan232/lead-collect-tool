@@ -27,6 +27,11 @@ export const PLATFORM_META = {
     icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.7 5.5 4.4 9 4.5-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/></svg>`,
     label: 'Twitter / X'
   },
+  'Twitter / X': {
+    color: '#1DA1F2', bgColor: 'rgba(29,161,242,0.15)',
+    icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.7 5.5 4.4 9 4.5-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/></svg>`,
+    label: 'Twitter / X'
+  },
   Twitter: {
     color: '#1DA1F2', bgColor: 'rgba(29,161,242,0.15)',
     icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.7 5.5 4.4 9 4.5-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/></svg>`,
@@ -41,6 +46,21 @@ export const PLATFORM_META = {
     color: '#FF5C39', bgColor: 'rgba(255,92,57,0.15)',
     icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
     label: 'Apollo B2B'
+  },
+  Crunchbase: {
+    color: '#0288D1', bgColor: 'rgba(2,136,209,0.15)',
+    icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M14.31 8l5.74 9.94M9.69 8h11.48M7.38 12l5.74-9.94M9.69 16L3.95 6.06M14.31 16H2.83m13.79-4l-5.74 9.94"/></svg>`,
+    label: 'Crunchbase'
+  },
+  'Product Hunt / GitHub': {
+    color: '#DA552F', bgColor: 'rgba(218,85,47,0.15)',
+    icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14h-3v-8h3c1.66 0 3 1.34 3 3s-1.34 3-3 3zm0-4h-1v2h1c.55 0 1-.45 1-1s-.45-1-1-1z"/></svg>`,
+    label: 'Product Hunt / GitHub'
+  },
+  'Product Hunt': {
+    color: '#DA552F', bgColor: 'rgba(218,85,47,0.15)',
+    icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14h-3v-8h3c1.66 0 3 1.34 3 3s-1.34 3-3 3zm0-4h-1v2h1c.55 0 1-.45 1-1s-.45-1-1-1z"/></svg>`,
+    label: 'Product Hunt'
   },
   Instagram: {
     color: '#E1306C', bgColor: 'rgba(225,48,108,0.15)',
