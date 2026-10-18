@@ -276,22 +276,26 @@ function generateTechStack(industry) {
 
 export function buildXRayQuery(platform, query) {
   const p = (platform || 'LinkedIn').toLowerCase();
-  const q = (query || 'decision maker SaaS').trim();
+  const q = (query || 'CEO Founder Technology').trim();
 
   if (p.includes('linkedin')) {
     return `site:linkedin.com/in/ ${q}`;
   } else if (p.includes('twitter') || p.includes('x')) {
-    return `(site:x.com OR site:twitter.com) -inurl:status ${q}`;
+    return `(site:x.com OR site:twitter.com) -inurl:status -inurl:hashtag -inurl:lists ("CEO" OR "Founder" OR "VP" OR "Director" OR "Head" OR "Co-founder") ${q}`;
   } else if (p.includes('upwork')) {
-    return `(site:upwork.com/freelancers/ OR site:upwork.com/agencies/) ${q}`;
-  } else if (p.includes('apollo') || p.includes('crunchbase')) {
-    return `(site:crunchbase.com/person/ OR site:apollo.io) ${q}`;
+    return `(site:upwork.com/freelancers/ OR site:upwork.com/agencies/ OR site:upwork.com/fl/) ${q}`;
+  } else if (p.includes('apollo')) {
+    return `(site:apollo.io/people OR site:apollo.io/companies OR site:crunchbase.com/person/ OR site:zoominfo.com/p/) ${q}`;
+  } else if (p.includes('crunchbase')) {
+    return `(site:crunchbase.com/person/ OR site:crunchbase.com/organization/) ${q}`;
+  } else if (p.includes('instagram') || p.includes('insta')) {
+    return `site:instagram.com ("founder" OR "CEO" OR "agency" OR "consultant" OR "entrepreneur") ${q} -inurl:p/ -inurl:reel/`;
   } else if (p.includes('custom') || p.includes('domain')) {
-    return `${q} ("founder" OR "CEO" OR "contact" OR "email") -site:linkedin.com`;
+    return `${q} ("about us" OR "leadership" OR "executive team" OR "contact" OR "founder") -site:linkedin.com -site:facebook.com -site:twitter.com`;
   } else if (p.includes('product') || p.includes('github')) {
     return `(site:github.com OR site:producthunt.com/@) ${q}`;
   }
-  return `(site:linkedin.com/in/ OR site:crunchbase.com/person/ OR site:x.com) ${q}`;
+  return `(site:linkedin.com/in/ OR site:x.com OR site:upwork.com/freelancers/ OR site:crunchbase.com/person/ OR site:apollo.io/people) ${q}`;
 }
 
 export async function fetchSerperDirect(xRayQuery, apiKey = '6f4ee01927a1bce8cd2a9ff7ca89c6ad95e885f7', num = 30) {
@@ -394,7 +398,7 @@ export function parseSerperOrganic(items, platform = 'LinkedIn', query = '') {
     }
     if (!company) {
       const domainMatch = (item.link || '').match(/https?:\/\/(?:www\.)?([^/]+)/);
-      if (domainMatch && !['linkedin.com', 'x.com', 'twitter.com', 'upwork.com', 'apollo.io', 'crunchbase.com'].includes(domainMatch[1])) {
+      if (domainMatch && !['linkedin.com', 'x.com', 'twitter.com', 'upwork.com', 'apollo.io', 'crunchbase.com', 'instagram.com'].includes(domainMatch[1])) {
         company = domainMatch[1].split('.')[0];
         company = company.charAt(0).toUpperCase() + company.slice(1);
       } else {
@@ -447,6 +451,19 @@ export function parseSerperOrganic(items, platform = 'LinkedIn', query = '') {
     const profileLink = item.link || `https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(name + ' ' + company)}`;
     const aiScore = 90 + ((idx * 7) % 9);
 
+    // Dynamic Platform Detection from URL
+    let detectedPlatform = platform;
+    const linkLower = (item.link || '').toLowerCase();
+    if (linkLower.includes('linkedin.com')) detectedPlatform = 'LinkedIn';
+    else if (linkLower.includes('x.com') || linkLower.includes('twitter.com')) detectedPlatform = 'Twitter / X';
+    else if (linkLower.includes('upwork.com')) detectedPlatform = 'Upwork';
+    else if (linkLower.includes('apollo.io')) detectedPlatform = 'Apollo';
+    else if (linkLower.includes('crunchbase.com')) detectedPlatform = 'Crunchbase';
+    else if (linkLower.includes('instagram.com')) detectedPlatform = 'Instagram';
+    else if (linkLower.includes('producthunt.com') || linkLower.includes('github.com')) detectedPlatform = 'Product Hunt / GitHub';
+    else if (platform && platform !== 'All Platforms') detectedPlatform = platform;
+    else detectedPlatform = 'Custom Domain';
+
     return {
       id: `lead_serper_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
       name,
@@ -460,9 +477,9 @@ export function parseSerperOrganic(items, platform = 'LinkedIn', query = '') {
       emailVerified: true,
       emailStatus: 'Verified',
       phone,
-      platform,
-      source: platform,
-      sourcePlatform: platform,
+      platform: detectedPlatform,
+      source: detectedPlatform,
+      sourcePlatform: detectedPlatform,
       score: aiScore,
       intentScore: aiScore,
       aiScore,

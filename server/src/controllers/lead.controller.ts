@@ -341,6 +341,7 @@ export class LeadController {
         keywords: z.array(z.string()).max(20).optional(),
         maxResults: z.number().int().min(1).max(50).optional().default(50),
         apiKey: z.string().optional(),
+        excludeUrls: z.array(z.string()).optional(),
       });
 
       const headerApiKey = (req.headers['x-search-api-key'] || req.headers['x-api-key']) as string | undefined;
@@ -350,8 +351,19 @@ export class LeadController {
       }
       const payload = scanSchema.parse(rawBody);
 
-      console.log(`🚀 [LeadController] Executing direct multi-platform discovery for "${payload.query || payload.jobTitle || 'Executive'}" on "${payload.platform || 'linkedin'}" (target: ${payload.maxResults || 50})...`);
-      const enriched = await scraperService.discoverLeads(payload);
+      // 3. Duplicate Prevention & Fresh Results:
+      // Filter out previously fetched URLs for current workspace/session so new searches yield fresh leads
+      const existingStoreUrls = inMemoryLeadStore
+        .map((l) => (l.linkedinUrl || l.url || '').trim().toLowerCase())
+        .filter(Boolean);
+      const clientExcludeUrls = Array.isArray(payload.excludeUrls) ? payload.excludeUrls : [];
+      const combinedExcludeUrls = Array.from(new Set([...existingStoreUrls, ...clientExcludeUrls.map((u: string) => u.toLowerCase().trim())]));
+
+      console.log(`🚀 [LeadController] Executing direct multi-platform discovery for "${payload.query || payload.jobTitle || 'Executive'}" on "${payload.platform || 'linkedin'}" (target: ${payload.maxResults || 50}, excluding ${combinedExcludeUrls.length} existing URLs)...`);
+      const enriched = await scraperService.discoverLeads({
+        ...payload,
+        excludeUrls: combinedExcludeUrls,
+      });
 
       // Prepend newly discovered leads to inMemoryLeadStore and persist to disk
       for (const lead of enriched) {

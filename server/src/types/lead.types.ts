@@ -8,6 +8,7 @@ export interface LeadScanPayload {
   keywords?: string[];
   maxResults?: number;
   apiKey?: string;
+  excludeUrls?: string[];
 }
 
 export interface EnrichedLead {

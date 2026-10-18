@@ -4,7 +4,7 @@
  * Imports: FilterEngine, OutreachGenerator, ExportUtils, ScraperEngine, VerificationEngine
  */
 
-const SOURCE_PLATFORM_OPTIONS = ['LinkedIn', 'Twitter / X', 'Upwork', 'Apollo', 'Crunchbase', 'Product Hunt / GitHub', 'Custom Domain'];
+const SOURCE_PLATFORM_OPTIONS = ['LinkedIn', 'Twitter / X', 'Upwork', 'Apollo', 'Crunchbase', 'Instagram', 'Product Hunt / GitHub', 'Custom Domain'];
 
 const INTENT_OPTIONS = [
   { id: 'High Intent', label: 'High Intent (Actively Scaling)' },
@@ -60,6 +60,7 @@ class LeadPulseApp {
     this.leads = [];
     this.filterEngine = null;
     this.selectedLeadIds = new Set();
+    this.viewedLeadIds = new Set(this.loadViewedLeads());
     this.currentView = 'grid';
     this.activeTab = 'discovery';
     this.currentDrawerLead = null;
@@ -302,6 +303,73 @@ class LeadPulseApp {
     this.leads = this.leads.map(l => l.id === id ? { ...l, ...updates } : l);
     this.filterEngine.setLeads(this.leads);
     this.saveLeads();
+  }
+
+  // ── Viewed / Visited Profile Tracking ───────────────────────────────────────
+
+  loadViewedLeads() {
+    try {
+      const stored = localStorage.getItem('leadpulse_viewed_leads');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  isLeadViewed(lead) {
+    if (!lead) return false;
+    if (lead.id && this.viewedLeadIds.has(String(lead.id))) return true;
+    const url = (lead.linkedinUrl || lead.linkedin || lead.url || '').toLowerCase().trim();
+    if (url && this.viewedLeadIds.has(url)) return true;
+    const email = (lead.email || '').toLowerCase().trim();
+    if (email && this.viewedLeadIds.has(email)) return true;
+    return false;
+  }
+
+  markLeadAsViewed(id) {
+    if (!id) return;
+    const lead = this.leads.find(l => l.id === id);
+    this.viewedLeadIds.add(String(id));
+    if (lead) {
+      const url = (lead.linkedinUrl || lead.linkedin || lead.url || '').toLowerCase().trim();
+      if (url) this.viewedLeadIds.add(url);
+      const email = (lead.email || '').toLowerCase().trim();
+      if (email) this.viewedLeadIds.add(email);
+    }
+    try {
+      localStorage.setItem('leadpulse_viewed_leads', JSON.stringify(Array.from(this.viewedLeadIds)));
+    } catch (_) {}
+
+    // Live update DOM badge on the active lead card
+    const card = document.querySelector(`.lead-card[data-id="${id}"]`);
+    if (card) {
+      card.classList.add('viewed');
+      const metaStrip = card.querySelector('.card-meta-strip');
+      if (metaStrip && !metaStrip.querySelector('.viewed-badge')) {
+        const badge = document.createElement('span');
+        badge.className = 'viewed-badge';
+        badge.title = 'Profile previously viewed & interacted with';
+        badge.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Viewed`;
+        metaStrip.appendChild(badge);
+      }
+    }
+
+    // Live update DOM badge on table row
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (row) {
+      row.classList.add('lead-row-viewed');
+      const nameContainer = row.querySelector('td:nth-child(2) > div > div:nth-child(2) > div:first-child');
+      if (nameContainer && !nameContainer.querySelector('.viewed-badge')) {
+        const badge = document.createElement('span');
+        badge.className = 'viewed-badge';
+        badge.style.fontSize = '0.68rem';
+        badge.style.padding = '0.12rem 0.4rem';
+        badge.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Viewed`;
+        nameContainer.appendChild(badge);
+      }
+    }
   }
 
   // ── Tab Navigation ──────────────────────────────────────────────────────────
@@ -548,6 +616,7 @@ class LeadPulseApp {
       const id = card.dataset.id;
       card.addEventListener('click', (e) => {
         if (e.target.closest('button') || e.target.closest('input') || e.target.closest('a')) return;
+        this.markLeadAsViewed(id);
         this.openDrawer(id);
       });
     });
@@ -562,6 +631,7 @@ class LeadPulseApp {
     grid.querySelectorAll('.card-ai-pitch-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
+        this.markLeadAsViewed(btn.dataset.id);
         this.openAIModal(btn.dataset.id);
       });
     });
@@ -569,6 +639,7 @@ class LeadPulseApp {
     grid.querySelectorAll('.card-save-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
+        this.markLeadAsViewed(btn.dataset.id);
         this.toggleSaveLead(btn.dataset.id);
       });
     });
@@ -576,8 +647,10 @@ class LeadPulseApp {
 
   createLeadCardHTML(lead) {
     const isSelected = this.selectedLeadIds.has(lead.id);
+    const isViewed = this.isLeadViewed(lead);
     const platformBadge = getPlatformBadgeHTML(lead.sourcePlatform);
     const emailBadge = getEmailStatusBadgeHTML(lead.emailStatus);
+    const viewedBadge = isViewed ? `<span class="viewed-badge" title="Profile previously viewed & interacted with"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Viewed</span>` : '';
     const techTags = (lead.techStack || []).slice(0, 4).map(t => `<span class="tech-tag">${t}</span>`).join('');
     const verifiedIcon = lead.emailStatus === 'Verified'
       ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color: var(--accent-emerald)"><polyline points="20 6 9 17 4 12"/></svg>`
@@ -586,7 +659,7 @@ class LeadPulseApp {
     const intentIconSVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`;
 
     return `
-    <div class="glass-card lead-card${isSelected ? ' selected' : ''}" data-id="${lead.id}">
+    <div class="glass-card lead-card${isSelected ? ' selected' : ''}${isViewed ? ' viewed' : ''}" data-id="${lead.id}">
       <!-- Header: Avatar + name + score + checkbox -->
       <div class="card-header-row">
         <div class="lead-profile-summary">
@@ -616,6 +689,7 @@ class LeadPulseApp {
       <div class="card-meta-strip">
         ${platformBadge}
         ${emailBadge}
+        ${viewedBadge}
         ${lead.fundingStage ? `<span class="funding-badge">💰 ${lead.fundingStage}</span>` : ''}
       </div>
 
@@ -657,7 +731,7 @@ class LeadPulseApp {
           <span>${lead.phone ? 'Direct' : 'N/A'}</span>
         </div>
         ${(lead.linkedinUrl || lead.linkedin) ? `
-        <a href="${lead.linkedinUrl || lead.linkedin}" target="_blank" rel="noopener noreferrer" class="contact-linkedin-badge" style="display:inline-flex; align-items:center; gap:0.25rem; font-size:0.75rem; color:#6366F1; text-decoration:none; font-weight:600; padding:0.2rem 0.5rem; background:rgba(99,102,241,0.12); border-radius:4px; border:1px solid rgba(99,102,241,0.25);" title="Open real profile in new tab" onclick="event.stopPropagation();">
+        <a href="${lead.linkedinUrl || lead.linkedin}" target="_blank" rel="noopener noreferrer" class="contact-linkedin-badge" style="display:inline-flex; align-items:center; gap:0.25rem; font-size:0.75rem; color:#6366F1; text-decoration:none; font-weight:600; padding:0.2rem 0.5rem; background:rgba(99,102,241,0.12); border-radius:4px; border:1px solid rgba(99,102,241,0.25);" title="Open real profile in new tab" onclick="event.stopPropagation(); window.app && window.app.markLeadAsViewed('${lead.id}');">
           Profile ↗
         </a>` : ''}
       </div>
@@ -680,11 +754,14 @@ class LeadPulseApp {
     const tbody = document.getElementById('leads-table-body');
     if (!tbody) return;
 
-    tbody.innerHTML = leads.map(lead => `
-      <tr class="${this.selectedLeadIds.has(lead.id) ? 'selected' : ''}" data-id="${lead.id}" style="cursor: pointer;">
+    tbody.innerHTML = leads.map(lead => {
+      const isSelected = this.selectedLeadIds.has(lead.id);
+      const isViewed = this.isLeadViewed(lead);
+      return `
+      <tr class="${isSelected ? 'selected' : ''}${isViewed ? ' lead-row-viewed' : ''}" data-id="${lead.id}" style="cursor: pointer;">
         <td>
           <input type="checkbox" class="lead-checkbox lead-checkbox-input" data-id="${lead.id}"
-            ${this.selectedLeadIds.has(lead.id) ? 'checked' : ''}>
+            ${isSelected ? 'checked' : ''}>
         </td>
         <td>
           <div style="display: flex; align-items: center; gap: 0.7rem;">
@@ -692,7 +769,10 @@ class LeadPulseApp {
               ${getInitials(lead.name)}
             </div>
             <div>
-              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.88rem;">${lead.name}</div>
+              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.88rem; display: flex; align-items: center; gap: 0.35rem;">
+                <span>${lead.name}</span>
+                ${isViewed ? `<span class="viewed-badge" style="font-size:0.68rem; padding:0.12rem 0.4rem;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Viewed</span>` : ''}
+              </div>
               <div style="font-size: 0.74rem; color: var(--text-muted);">${lead.title}</div>
             </div>
           </div>
@@ -712,11 +792,12 @@ class LeadPulseApp {
           </span>
         </td>
         <td style="text-align: right; white-space: nowrap;">
-          ${(lead.linkedinUrl || lead.linkedin) ? `<a href="${lead.linkedinUrl || lead.linkedin}" target="_blank" rel="noopener noreferrer" style="color: #6366F1; text-decoration: none; font-size: 0.78rem; font-weight: 600; margin-right: 0.6rem; padding: 0.25rem 0.5rem; background: rgba(99, 102, 241, 0.12); border-radius: 4px; border: 1px solid rgba(99, 102, 241, 0.25); display: inline-flex; align-items: center; gap: 0.25rem;" onclick="event.stopPropagation();" title="Open real verified profile in new tab">Profile ↗</a>` : ''}
+          ${(lead.linkedinUrl || lead.linkedin) ? `<a href="${lead.linkedinUrl || lead.linkedin}" target="_blank" rel="noopener noreferrer" style="color: #6366F1; text-decoration: none; font-size: 0.78rem; font-weight: 600; margin-right: 0.6rem; padding: 0.25rem 0.5rem; background: rgba(99, 102, 241, 0.12); border-radius: 4px; border: 1px solid rgba(99, 102, 241, 0.25); display: inline-flex; align-items: center; gap: 0.25rem;" onclick="event.stopPropagation(); window.app && window.app.markLeadAsViewed('${lead.id}');" title="Open real verified profile in new tab">Profile ↗</a>` : ''}
           <button class="btn btn-primary btn-sm card-ai-pitch-btn" data-id="${lead.id}">✨ Pitch</button>
         </td>
       </tr>
-    `).join('');
+      `;
+    }).join('');
 
     if (leads.length === 0) {
       tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-muted);">${this._emptyState()}</td></tr>`;
@@ -726,6 +807,7 @@ class LeadPulseApp {
     tbody.querySelectorAll('tr[data-id]').forEach(row => {
       row.addEventListener('click', (e) => {
         if (e.target.closest('button') || e.target.closest('input')) return;
+        this.markLeadAsViewed(row.dataset.id);
         this.openDrawer(row.dataset.id);
       });
     });
@@ -740,6 +822,7 @@ class LeadPulseApp {
     tbody.querySelectorAll('.card-ai-pitch-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
+        this.markLeadAsViewed(btn.dataset.id);
         this.openAIModal(btn.dataset.id);
       });
     });
@@ -855,14 +938,18 @@ class LeadPulseApp {
   }
 
   _pipelineCardHTML(lead) {
+    const isViewed = this.isLeadViewed(lead);
     return `
-      <div class="pipeline-card" draggable="true" data-id="${lead.id}" id="pcard-${lead.id}">
+      <div class="pipeline-card${isViewed ? ' viewed' : ''}" draggable="true" data-id="${lead.id}" id="pcard-${lead.id}">
         <div style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.6rem;">
           <div style="width: 32px; height: 32px; border-radius: 7px; background: ${lead.avatarBg}; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.78rem; color: white; flex-shrink: 0;">
             ${getInitials(lead.name)}
           </div>
           <div style="min-width: 0;">
-            <div style="font-weight: 700; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${lead.name}</div>
+            <div style="font-weight: 700; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 0.35rem;">
+              <span>${lead.name}</span>
+              ${isViewed ? `<span class="viewed-badge" style="font-size: 0.64rem; padding: 0.1rem 0.35rem;"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Viewed</span>` : ''}
+            </div>
             <div style="font-size: 0.72rem; color: var(--text-muted);">${lead.company} · ${lead.title.split(' ').slice(0, 3).join(' ')}</div>
           </div>
         </div>
@@ -872,7 +959,7 @@ class LeadPulseApp {
           <span class="ai-score-badge score-${lead.scoreTier || 'medium'}" style="font-size: 0.66rem; padding: 0.1rem 0.4rem;">${lead.aiScore}%</span>
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
-          <button class="btn btn-ghost btn-sm" onclick="window.app.openDrawer('${lead.id}')" style="flex:1; font-size:0.73rem; padding: 0.3rem;">
+          <button class="btn btn-ghost btn-sm" onclick="window.app && (window.app.markLeadAsViewed('${lead.id}'), window.app.openDrawer('${lead.id}'))" style="flex:1; font-size:0.73rem; padding: 0.3rem;">
             View Details
           </button>
           <select class="custom-select pipeline-stage-select" data-id="${lead.id}" style="flex: 1; font-size: 0.73rem; padding: 0.3rem; height: auto;">
@@ -1062,6 +1149,7 @@ class LeadPulseApp {
   // ── Enrichment Drawer ──────────────────────────────────────────────────────
 
   openDrawer(id) {
+    this.markLeadAsViewed(id);
     const lead = this.leads.find(l => l.id === id);
     if (!lead) return;
     this.currentDrawerLead = lead;
@@ -1080,6 +1168,7 @@ class LeadPulseApp {
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.4rem;">${lead.title} at <strong style="color: var(--text-primary);">${lead.company}</strong></div>
           <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
             ${getPlatformBadgeHTML(lead.sourcePlatform)}
+            <span class="viewed-badge" style="font-size:0.75rem; padding:0.18rem 0.55rem;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Viewed</span>
             <span class="ai-score-badge score-${lead.scoreTier || 'medium'}">${lead.aiScore}% AI Match</span>
             ${lead.fundingStage ? `<span class="funding-badge">💰 ${lead.fundingStage}</span>` : ''}
           </div>
@@ -1161,9 +1250,9 @@ class LeadPulseApp {
             </div>
           </div>
           <div class="contact-detail-item">
-            <span class="contact-item-label">LinkedIn</span>
+            <span class="contact-item-label">Profile Link</span>
             <div class="contact-item-val">
-              <a href="${lead.linkedin}" target="_blank" rel="noopener" style="font-size: 0.78rem;">Open Profile ↗</a>
+              <a href="${lead.linkedin || lead.linkedinUrl || '#'}" target="_blank" rel="noopener noreferrer" style="font-size: 0.78rem;" onclick="window.app && window.app.markLeadAsViewed('${lead.id}');">Open Real Profile ↗</a>
             </div>
           </div>
           <div class="contact-detail-item">
@@ -1304,6 +1393,7 @@ class LeadPulseApp {
   // ── AI Outreach Modal ──────────────────────────────────────────────────────
 
   openAIModal(id) {
+    this.markLeadAsViewed(id);
     const lead = this.leads.find(l => l.id === id);
     if (!lead) return;
     this.currentModalLead = lead;
@@ -1400,6 +1490,10 @@ class LeadPulseApp {
 
     try {
       // 1. Attempt scan on backend (if server is reachable)
+      const existingUrls = this.leads
+        .map(l => (l.linkedinUrl || l.linkedin || l.url || '').toLowerCase().trim())
+        .filter(Boolean);
+
       const response = await fetch(`${API_BASE_URL}/leads/scan`, {
         method: 'POST',
         headers: {
@@ -1412,7 +1506,8 @@ class LeadPulseApp {
           platform: selectedPlatform,
           jobTitle: keywords,
           maxResults: 50,
-          apiKey: userApiKey
+          apiKey: userApiKey,
+          excludeUrls: existingUrls
         })
       });
 
@@ -1452,25 +1547,28 @@ class LeadPulseApp {
           xRayQuery = `site:linkedin.com/in/ ${queryText}`;
           displayPlatform = 'LinkedIn';
         } else if (pKey.includes('twitter') || pKey.includes('x')) {
-          xRayQuery = `(site:x.com OR site:twitter.com) -inurl:status ${queryText}`;
+          xRayQuery = `(site:x.com OR site:twitter.com) -inurl:status -inurl:hashtag -inurl:lists ("CEO" OR "Founder" OR "VP" OR "Director" OR "Head" OR "Co-founder") ${queryText}`;
           displayPlatform = 'Twitter / X';
         } else if (pKey.includes('upwork')) {
-          xRayQuery = `(site:upwork.com/freelancers/ OR site:upwork.com/agencies/) ${queryText}`;
+          xRayQuery = `(site:upwork.com/freelancers/ OR site:upwork.com/agencies/ OR site:upwork.com/fl/) ${queryText}`;
           displayPlatform = 'Upwork';
         } else if (pKey.includes('apollo')) {
-          xRayQuery = `(site:crunchbase.com/person/ OR site:apollo.io) ${queryText}`;
+          xRayQuery = `(site:apollo.io/people OR site:apollo.io/companies OR site:crunchbase.com/person/ OR site:zoominfo.com/p/) ${queryText}`;
           displayPlatform = 'Apollo';
         } else if (pKey.includes('crunchbase')) {
-          xRayQuery = `site:crunchbase.com/person/ ${queryText}`;
+          xRayQuery = `(site:crunchbase.com/person/ OR site:crunchbase.com/organization/) ${queryText}`;
           displayPlatform = 'Crunchbase';
+        } else if (pKey.includes('instagram') || pKey.includes('insta')) {
+          xRayQuery = `site:instagram.com ("founder" OR "CEO" OR "agency" OR "consultant" OR "entrepreneur") ${queryText} -inurl:p/ -inurl:reel/`;
+          displayPlatform = 'Instagram';
         } else if (pKey.includes('product') || pKey.includes('github')) {
           xRayQuery = `(site:github.com OR site:producthunt.com/@) ${queryText}`;
           displayPlatform = 'Product Hunt / GitHub';
         } else if (pKey.includes('custom') || pKey.includes('domain')) {
-          xRayQuery = `${queryText} ("founder" OR "CEO" OR "contact" OR "email") -site:linkedin.com`;
+          xRayQuery = `${queryText} ("about us" OR "leadership" OR "executive team" OR "contact" OR "founder") -site:linkedin.com -site:facebook.com -site:twitter.com`;
           displayPlatform = 'Custom Domain';
         } else {
-          xRayQuery = `(site:linkedin.com/in/ OR site:crunchbase.com/person/ OR site:x.com) ${queryText}`;
+          xRayQuery = `(site:linkedin.com/in/ OR site:x.com OR site:upwork.com/freelancers/ OR site:crunchbase.com/person/ OR site:apollo.io/people) ${queryText}`;
           displayPlatform = 'All Platforms';
         }
 
@@ -1480,6 +1578,22 @@ class LeadPulseApp {
           organicItems = await fetchSerperDirect(xRayQuery, userApiKey || '6f4ee01927a1bce8cd2a9ff7ca89c6ad95e885f7', 30);
         } catch (serperErr) {
           console.warn('Direct Serper fetch error:', serperErr);
+        }
+
+        // Intelligent Fallback: If a specific platform returns fewer than 10 results, broaden across multi-platform B2B indexes
+        if (organicItems.length < 10) {
+          try {
+            const broadenedQuery = `(site:linkedin.com/in/ OR site:twitter.com OR site:x.com OR site:upwork.com/freelancers/ OR site:crunchbase.com/person/ OR site:apollo.io/people) ${queryText}`;
+            const secondaryItems = await fetchSerperDirect(broadenedQuery, userApiKey || '6f4ee01927a1bce8cd2a9ff7ca89c6ad95e885f7', 30);
+            const seenLinks = new Set(organicItems.map(i => (i.link || '').toLowerCase().trim()));
+            for (const item of secondaryItems) {
+              const lk = (item.link || '').toLowerCase().trim();
+              if (lk && !seenLinks.has(lk)) {
+                seenLinks.add(lk);
+                organicItems.push(item);
+              }
+            }
+          } catch (e) {}
         }
 
         if (stageLabel) stageLabel.textContent = 'Parsing verified profiles, corporate emails & direct phones (75%)...';
@@ -1492,9 +1606,21 @@ class LeadPulseApp {
           newLeads = parseSerperOrganic(organicItems, displayPlatform, queryText);
         }
 
+        // Duplicate Prevention: Filter out previously fetched URLs for current workspace/session
+        const existingUrlSet = new Set(this.leads.map(l => (l.linkedinUrl || l.linkedin || l.url || '').toLowerCase().trim()).filter(Boolean));
+        newLeads = newLeads.filter(l => {
+          const lk = (l.linkedinUrl || l.linkedin || l.url || '').toLowerCase().trim();
+          return lk ? !existingUrlSet.has(lk) : true;
+        });
+
         // Guaranteed fallback if Serper API returned 0 results or network blocked
         if (!newLeads || newLeads.length === 0) {
-          newLeads = await ScraperEngine.scan(displayPlatform, { keywords: queryText, apiKey: userApiKey });
+          const fallbackLeads = await ScraperEngine.scan(displayPlatform, { keywords: queryText, apiKey: userApiKey });
+          newLeads = fallbackLeads.filter(l => {
+            const lk = (l.linkedinUrl || l.linkedin || l.url || '').toLowerCase().trim();
+            return lk ? !existingUrlSet.has(lk) : true;
+          });
+          if (newLeads.length === 0) newLeads = fallbackLeads.slice(0, 15);
         }
 
         if (stageLabel) stageLabel.textContent = 'Scoring intent signals and updating workspace pipeline (90%)...';
