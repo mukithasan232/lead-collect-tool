@@ -192,12 +192,9 @@ export class LeadController {
     };
 
     const steps = [
-      { pct: 10, stage: 'Queuing job on BullMQ worker...' },
-      { pct: 25, stage: 'Discovering profiles via Nubela API...' },
-      { pct: 45, stage: 'Enriching firmographic data...' },
-      { pct: 65, stage: 'Running MX + SMTP email verification...' },
-      { pct: 80, stage: 'Scoring intent signals with AI model...' },
-      { pct: 95, stage: 'Persisting leads to database...' },
+      { pct: 15, stage: 'Connecting to Serper.dev Google API...' },
+      { pct: 45, stage: 'Discovering live multi-platform profiles & emails...' },
+      { pct: 80, stage: 'Scoring intent signals & verifying leads...' },
       { pct: 100, stage: 'Scan complete! Dashboard updated.' },
     ];
 
@@ -211,7 +208,7 @@ export class LeadController {
       }
       send('progress', steps[i]);
       i++;
-    }, 1800);
+    }, 1500);
 
     // Clean up if client disconnects early
     req.on('close', () => clearInterval(interval));
@@ -227,6 +224,8 @@ export class LeadController {
     try {
       const scanSchema = z.object({
         userId: z.string().min(1, 'userId is required'),
+        query: z.string().optional(),
+        platform: z.string().optional(),
         jobTitle: z.string().max(255).optional(),
         location: z.string().max(255).optional(),
         industry: z.string().max(255).optional(),
@@ -259,7 +258,7 @@ export class LeadController {
         });
       } catch (queueErr: any) {
         console.warn(`⚠️ [LeadController] Queue unavailable (${queueErr.message}), executing scan directly...`);
-        const enriched = await scraperService.fetchLeadsFromNubela(payload);
+        const enriched = await scraperService.discoverLeads(payload);
 
         let targetUserId = payload.userId;
         try {
@@ -292,12 +291,29 @@ export class LeadController {
                 linkedinUrl: l.linkedinUrl ?? undefined,
                 domain: l.domain ?? undefined,
                 sourcePlatform: l.sourcePlatform || 'LinkedIn',
-                verificationStatus: l.verificationStatus || 'VERIFIED',
+                verificationStatus: (l.verificationStatus as EmailVerificationStatus) || EmailVerificationStatus.VERIFIED,
               })),
               skipDuplicates: true,
             });
           } catch (insertErr: any) {
             console.warn(`⚠️ [LeadController] Direct insert warning:`, insertErr.message);
+            for (const l of enriched) {
+              try {
+                await prisma.lead.create({
+                  data: {
+                    userId: targetUserId,
+                    name: l.name,
+                    jobTitle: l.jobTitle ?? undefined,
+                    company: l.company,
+                    email: l.email ?? undefined,
+                    linkedinUrl: l.linkedinUrl ?? undefined,
+                    domain: l.domain ?? undefined,
+                    sourcePlatform: l.sourcePlatform || 'LinkedIn',
+                    verificationStatus: (l.verificationStatus as EmailVerificationStatus) || EmailVerificationStatus.VERIFIED,
+                  },
+                });
+              } catch (_) {}
+            }
           }
         }
 

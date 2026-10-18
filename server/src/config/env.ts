@@ -37,7 +37,7 @@ export const env = {
   PROXYCURL_API_KEY: process.env.PROXYCURL_API_KEY || process.env.NUBELA_API_KEY || '',
   NUBELA_API_KEY: process.env.NUBELA_API_KEY || process.env.PROXYCURL_API_KEY || '',
   PDL_API_KEY: process.env.PDL_API_KEY || '',
-  SERPER_API_KEY: process.env.SERPER_API_KEY || '',
+  SERPER_API_KEY: process.env.SERPER_API_KEY || '6f4ee01927a1bce8cd2a9ff7ca89c6ad95e885f7',
   TAVILY_API_KEY: process.env.TAVILY_API_KEY || '',
   isDev: (process.env.NODE_ENV || 'development') === 'development',
   isProd: process.env.NODE_ENV === 'production',

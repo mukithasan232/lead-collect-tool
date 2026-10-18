@@ -36,8 +36,10 @@ export const API_BASE_URL = window.location.hostname === 'localhost' || window.l
 // ── Platform Badge HTML Generator ─────────────────────────────────────────────
 function getPlatformBadgeHTML(platform) {
   if (!platform) platform = 'LinkedIn';
-  const cls = platform.replace(/\s+/g, '-');
-  const meta = PLATFORM_META[platform] || PLATFORM_META['LinkedIn'];
+  const meta = PLATFORM_META[platform] ||
+    PLATFORM_META[Object.keys(PLATFORM_META).find(k => k.toLowerCase() === platform.toLowerCase())] ||
+    PLATFORM_META['LinkedIn'];
+  const cls = (meta.label || platform).replace(/[\s\/]+/g, '-');
   return `<span class="platform-badge ${cls}">${meta.icon || ''} ${meta.label || platform}</span>`;
 }
 
@@ -66,6 +68,7 @@ class LeadPulseApp {
     this.outreachTone = 'value_first';
     this.outreachVariant = 0;
     this.isScanRunning = false;
+    this.pendingScanAfterLogin = false;
 
     // ── Pagination state ────────────────────────────────────────────
     this.currentPage = 1;
@@ -94,7 +97,7 @@ class LeadPulseApp {
 
   getSession() {
     try {
-      const raw = localStorage.getItem('leadpulse_account_session');
+      const raw = localStorage.getItem('leadpulse_user') || localStorage.getItem('leadpulse_account_session');
       return raw ? JSON.parse(raw) : null;
     } catch (_) {
       return null;
@@ -107,16 +110,19 @@ class LeadPulseApp {
   }
 
   setSession(data) {
-    localStorage.setItem('leadpulse_account_session', JSON.stringify({
+    const payload = JSON.stringify({
       email: data.email,
       accessCode: data.accessCode || 'authenticated',
       apiKey: data.apiKey ? data.apiKey.trim() : '',
       loggedInAt: Date.now()
-    }));
+    });
+    localStorage.setItem('leadpulse_user', payload);
+    localStorage.setItem('leadpulse_account_session', payload);
     this.updateAuthUI();
   }
 
   clearSession() {
+    localStorage.removeItem('leadpulse_user');
     localStorage.removeItem('leadpulse_account_session');
     this.updateAuthUI();
     this.showToast('info', 'Logged out of workspace session.');
@@ -134,12 +140,16 @@ class LeadPulseApp {
       if (sessionBadge) sessionBadge.style.display = 'inline-flex';
       if (sessionEmailEl) sessionEmailEl.textContent = session.email;
     } else {
-      if (loginBtn) loginBtn.style.display = 'inline-flex';
+      if (loginBtn) {
+        loginBtn.style.display = 'inline-flex';
+        loginBtn.innerHTML = '🔐 Account Login';
+      }
       if (sessionBadge) sessionBadge.style.display = 'none';
     }
   }
 
-  openLoginModal(noticeText = null) {
+  openLoginModal(noticeText = null, triggerScanOnLogin = false) {
+    this.pendingScanAfterLogin = !!triggerScanOnLogin;
     const backdrop = document.getElementById('account-login-modal-backdrop');
     if (!backdrop) return;
     const session = this.getSession();
@@ -176,9 +186,15 @@ class LeadPulseApp {
       this.openLoginModal();
     });
 
+    document.getElementById('header-session-badge')?.addEventListener('click', (e) => {
+      if (!e.target.closest('#header-logout-btn')) {
+        this.openLoginModal('Switch Account or Update Serper.dev API Key');
+      }
+    });
+
     document.getElementById('open-integrations-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.openLoginModal('Workspace & Live Search API Integration Settings (Serper / Tavily)');
+      this.openLoginModal('Workspace & Live Search API Integration Settings (Serper.dev)');
     });
 
     document.getElementById('close-login-modal-btn')?.addEventListener('click', () => {
@@ -219,6 +235,13 @@ class LeadPulseApp {
       this.closeLoginModal();
       this.showToast('success', `🟢 Successfully logged in as ${email}`);
       this.fetchLeadsFromBackend();
+
+      if (this.pendingScanAfterLogin) {
+        this.pendingScanAfterLogin = false;
+        setTimeout(() => {
+          this.runScraperScan();
+        }, 200);
+      }
     });
 
     document.getElementById('account-login-modal-backdrop')?.addEventListener('click', (e) => {
@@ -226,6 +249,7 @@ class LeadPulseApp {
         this.closeLoginModal();
       }
     });
+  }
 
   // ── Data Management ─────────────────────────────────────────────────────────
 
@@ -604,9 +628,8 @@ class LeadPulseApp {
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.5 2.29h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.06 6.06l1.98-1.98a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
           <span>${lead.phone ? 'Direct' : 'N/A'}</span>
         </div>
-        ${lead.linkedin ? `
-        <a href="${lead.linkedin}" target="_blank" rel="noopener noreferrer" class="contact-linkedin-badge" style="display:inline-flex; align-items:center; gap:0.25rem; font-size:0.75rem; color:#0A66C2; text-decoration:none; font-weight:600; padding:0.2rem 0.5rem; background:rgba(10,102,194,0.12); border-radius:4px; border:1px solid rgba(10,102,194,0.25);" title="Open real verified profile on LinkedIn" onclick="event.stopPropagation();">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+        ${(lead.linkedinUrl || lead.linkedin) ? `
+        <a href="${lead.linkedinUrl || lead.linkedin}" target="_blank" rel="noopener noreferrer" class="contact-linkedin-badge" style="display:inline-flex; align-items:center; gap:0.25rem; font-size:0.75rem; color:#6366F1; text-decoration:none; font-weight:600; padding:0.2rem 0.5rem; background:rgba(99,102,241,0.12); border-radius:4px; border:1px solid rgba(99,102,241,0.25);" title="Open real profile in new tab" onclick="event.stopPropagation();">
           Profile ↗
         </a>` : ''}
       </div>
@@ -661,7 +684,7 @@ class LeadPulseApp {
           </span>
         </td>
         <td style="text-align: right; white-space: nowrap;">
-          ${lead.linkedin ? `<a href="${lead.linkedin}" target="_blank" rel="noopener noreferrer" style="color: #0A66C2; text-decoration: none; font-size: 0.78rem; font-weight: 600; margin-right: 0.6rem; padding: 0.25rem 0.5rem; background: rgba(10, 102, 194, 0.12); border-radius: 4px; border: 1px solid rgba(10, 102, 194, 0.25); display: inline-flex; align-items: center; gap: 0.25rem;" onclick="event.stopPropagation();" title="View real LinkedIn profile">LinkedIn ↗</a>` : ''}
+          ${(lead.linkedinUrl || lead.linkedin) ? `<a href="${lead.linkedinUrl || lead.linkedin}" target="_blank" rel="noopener noreferrer" style="color: #6366F1; text-decoration: none; font-size: 0.78rem; font-weight: 600; margin-right: 0.6rem; padding: 0.25rem 0.5rem; background: rgba(99, 102, 241, 0.12); border-radius: 4px; border: 1px solid rgba(99, 102, 241, 0.25); display: inline-flex; align-items: center; gap: 0.25rem;" onclick="event.stopPropagation();" title="Open real verified profile in new tab">Profile ↗</a>` : ''}
           <button class="btn btn-primary btn-sm card-ai-pitch-btn" data-id="${lead.id}">✨ Pitch</button>
         </td>
       </tr>
@@ -1306,7 +1329,7 @@ class LeadPulseApp {
 
   async runScraperScan() {
     if (!this.isLoggedIn()) {
-      this.openLoginModal('Account login required: Please sign in to your workspace before running a targeted lead scan.');
+      this.openLoginModal('Account login required: Please sign in to your workspace before running a targeted lead scan.', true);
       this.showToast('info', 'Please sign in to your workspace account first.');
       return;
     }
@@ -1314,8 +1337,10 @@ class LeadPulseApp {
     if (this.isScanRunning) return;
     this.isScanRunning = true;
 
+    const platformEl = document.getElementById('scraper-platform-select');
+    const selectedPlatform = platformEl ? platformEl.value : 'linkedin';
     const keywordsEl = document.getElementById('scraper-keywords-input');
-    const keywords = keywordsEl?.value || '';
+    const keywords = (keywordsEl?.value || '').trim();
 
     const progressWrap = document.getElementById('scraper-progress-wrap');
     const stageLabel = document.getElementById('scraper-stage-label');
@@ -1332,12 +1357,12 @@ class LeadPulseApp {
     const userEmail = session ? session.email : 'client@company.com';
     const userApiKey = session && session.apiKey ? session.apiKey : undefined;
 
-    this.showToast('info', `Initiating 100% Real LinkedIn X-Ray Scan for "${keywords || 'decision makers'}"...`);
+    this.showToast('info', `Initiating real-time discovery for "${keywords || 'decision makers'}" on ${selectedPlatform}...`);
 
     try {
-      if (stageLabel) stageLabel.textContent = 'Executing multi-engine X-Ray discovery...';
-      if (pctLabel) pctLabel.textContent = `20%`;
-      if (fillBar) fillBar.style.width = `20%`;
+      if (stageLabel) stageLabel.textContent = 'Connecting to Serper.dev Google API (15%)...';
+      if (pctLabel) pctLabel.textContent = `15%`;
+      if (fillBar) fillBar.style.width = `15%`;
 
       // 1. Trigger the scan on the backend
       const response = await fetch(`${API_BASE_URL}/leads/scan`, {
@@ -1348,7 +1373,9 @@ class LeadPulseApp {
         },
         body: JSON.stringify({
           userId: userEmail,
-          jobTitle: keywords, // Using keywords as jobTitle/criteria
+          query: keywords,
+          platform: selectedPlatform,
+          jobTitle: keywords,
           maxResults: 10,
           apiKey: userApiKey
         })
@@ -1358,9 +1385,9 @@ class LeadPulseApp {
         throw new Error(`Failed to start scan: ${response.status}`);
       }
       
-      if (stageLabel) stageLabel.textContent = 'Parsing verified profiles & extracting real corporate emails...';
-      if (pctLabel) pctLabel.textContent = `50%`;
-      if (fillBar) fillBar.style.width = `50%`;
+      if (stageLabel) stageLabel.textContent = 'Discovering live multi-platform profiles & corporate emails (45%)...';
+      if (pctLabel) pctLabel.textContent = `45%`;
+      if (fillBar) fillBar.style.width = `45%`;
 
       // 2. Poll dynamically for results until worker/backend inserts them
       const initialCount = this.leads.length;
@@ -1372,10 +1399,10 @@ class LeadPulseApp {
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         const elapsed = Date.now() - startTime;
-        const currentPct = Math.min(92, 50 + Math.floor((elapsed / maxPollingMs) * 42));
+        const currentPct = Math.min(88, 45 + Math.floor((elapsed / maxPollingMs) * 35));
         if (pctLabel) pctLabel.textContent = `${currentPct}%`;
         if (fillBar) fillBar.style.width = `${currentPct}%`;
-        if (stageLabel) stageLabel.textContent = `Enriching intent signals (${Math.round(elapsed / 1000)}s)...`;
+        if (stageLabel) stageLabel.textContent = `Scoring intent signals & verifying leads (${Math.round(elapsed / 1000)}s)...`;
 
         const count = await this.fetchLeadsFromBackend();
         if (count > initialCount) {
@@ -1393,8 +1420,8 @@ class LeadPulseApp {
       if (pctLabel) pctLabel.textContent = `100%`;
       if (fillBar) fillBar.style.width = `100%`;
 
-      if (resultMsg) resultMsg.textContent = `✓ Scan completed. 100% real LinkedIn leads loaded into dashboard.`;
-      this.showToast('success', `🎯 Real LinkedIn leads discovered and refreshed!`);
+      if (resultMsg) resultMsg.textContent = `✓ Scan completed. Real-time leads discovered and loaded into dashboard.`;
+      this.showToast('success', `🎯 Real-time leads discovered and refreshed!`);
     } catch (err) {
       console.error("Scan API Error:", err);
       if (err instanceof TypeError) {

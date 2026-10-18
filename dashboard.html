@@ -73,13 +73,11 @@
         </button>
         <!-- Account Login & Session Workspace -->
         <button class="btn btn-secondary btn-sm" id="header-login-btn" style="border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.1);">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Account Login
+          🔐 Account Login
         </button>
         <div id="header-session-badge" class="stat-chip" style="display: none; align-items: center; gap: 0.45rem; padding: 0.3rem 0.7rem; border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);">
-          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10B981; box-shadow: 0 0 8px #10B981;"></span>
-          <span style="font-size: 0.78rem;">🟢 Logged in: <strong id="header-session-email" style="color: #10B981;">client@company.com</strong></span>
-          <button type="button" id="header-logout-btn" class="btn btn-ghost btn-xs" style="padding: 0.15rem 0.45rem; font-size: 0.72rem; margin-left: 0.25rem; color: var(--text-muted); border: 1px solid var(--glass-border); border-radius: 4px;" title="Sign out of account">Logout</button>
+          <span style="font-size: 0.78rem;">🟢 <strong id="header-session-email" style="color: #10B981;">client@company.com</strong></span>
+          <button type="button" id="header-logout-btn" class="btn btn-ghost btn-xs" style="padding: 0.15rem 0.45rem; font-size: 0.72rem; margin-left: 0.25rem; color: var(--text-muted); border: 1px solid var(--glass-border); border-radius: 4px;" title="Sign out or switch account">Logout / Switch</button>
         </div>
         <!-- Integrations Hub -->
         <button class="btn btn-secondary btn-sm" id="open-integrations-btn">
@@ -121,13 +119,13 @@
                 Platform:
               </div>
               <select id="scraper-platform-select" class="custom-select">
-                <option value="LinkedIn">LinkedIn / Sales Navigator</option>
-                <option value="Twitter">Twitter / X</option>
-                <option value="Upwork">Upwork Marketplace</option>
-                <option value="Facebook">Facebook Business</option>
-                <option value="Pinterest">Pinterest Business</option>
-                <option value="Apollo">Apollo API</option>
-                <option value="Custom Scraper">Custom Domain Crawler</option>
+                <option value="linkedin">LinkedIn / Sales Navigator</option>
+                <option value="twitter">Twitter / X Profiles</option>
+                <option value="upwork">Upwork / Agencies</option>
+                <option value="apollo">Apollo / Crunchbase B2B</option>
+                <option value="instagram">Instagram / Brands</option>
+                <option value="domain">Custom Domain / B2B Websites</option>
+                <option value="all">All Platforms (Omni-Search)</option>
               </select>
               <input
                 type="text"

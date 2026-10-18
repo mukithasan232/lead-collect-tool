@@ -1,5 +1,7 @@
 export interface LeadScanPayload {
   userId: string;
+  query?: string;
+  platform?: string;
   jobTitle?: string;
   location?: string;
   industry?: string;

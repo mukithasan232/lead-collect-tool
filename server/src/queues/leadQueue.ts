@@ -55,8 +55,10 @@ export const leadWorker = new Worker<LeadScanPayload, EnrichedLead[]>(
 
       let enrichedLeads: EnrichedLead[];
       try {
-        enrichedLeads = await scraperService.fetchLeadsFromNubela({
+        enrichedLeads = await scraperService.discoverLeads({
           userId,
+          query: job.data.query,
+          platform: job.data.platform,
           jobTitle,
           location,
           industry,
@@ -175,11 +177,16 @@ export const leadWorker = new Worker<LeadScanPayload, EnrichedLead[]>(
       });
       insertedCount = result.count;
     } catch (dbErr) {
-      console.error(
-        `❌ [Job ${job.id}] Database insert failed:`,
+      console.warn(
+        `⚠️ [Job ${job.id}] Database createMany notice, falling back to individual inserts:`,
         (dbErr as Error).message
       );
-      throw dbErr; // fail the job so BullMQ can retry
+      for (const item of leadsToInsert) {
+        try {
+          await prisma.lead.create({ data: item });
+          insertedCount++;
+        } catch (_) {}
+      }
     }
 
     await job.updateProgress(100);
