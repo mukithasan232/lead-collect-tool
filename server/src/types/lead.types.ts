@@ -5,6 +5,7 @@ export interface LeadScanPayload {
   industry?: string;
   keywords?: string[];
   maxResults?: number;
+  apiKey?: string;
 }
 
 export interface EnrichedLead {
@@ -19,4 +20,6 @@ export interface EnrichedLead {
   sourcePlatform: string;
   confidence: number; // 0–1 match confidence score
   verificationStatus?: 'VERIFIED' | 'UNVERIFIED' | 'INVALID' | 'CATCH_ALL';
+  intentSignal?: string;
 }
+

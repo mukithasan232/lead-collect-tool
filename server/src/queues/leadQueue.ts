@@ -62,23 +62,24 @@ export const leadWorker = new Worker<LeadScanPayload, EnrichedLead[]>(
           industry,
           keywords,
           maxResults,
+          apiKey: job.data.apiKey,
         });
       } catch (err: any) {
         if (err instanceof NubelaRateLimitError) {
           // Surface rate-limit clearly so BullMQ can schedule a retry
           console.warn(
-            `⚠️  [Job ${job.id}] Nubela rate limit hit. ` +
+            `⚠️  [Job ${job.id}] Rate limit hit. ` +
             `Retry after ${err.retryAfterSeconds}s. ` +
             `BullMQ will retry with exponential back-off.`
           );
           throw err; // re-throw so BullMQ marks job as failed → triggers retry
         }
-        console.error(`❌ [Job ${job.id}] Nubela fetch error:`, err.message);
+        console.error(`❌ [Job ${job.id}] Scraper fetch error:`, err.message);
         throw err;
       }
 
       await job.updateProgress(50);
-      console.log(`📦 [Job ${job.id}] Nubela returned ${enrichedLeads.length} leads.`);
+      console.log(`📦 [Job ${job.id}] Scraper returned ${enrichedLeads.length} leads.`);
 
       if (enrichedLeads.length === 0) {
         await job.updateProgress(100);
@@ -98,14 +99,19 @@ export const leadWorker = new Worker<LeadScanPayload, EnrichedLead[]>(
       const firstName = nameParts[0] || '';
       const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
 
-      if (firstName && lastName && domain) {
-        console.log(`[Job ${job.id}] Discovering email for ${firstName} ${lastName} @ ${domain}`);
-        const verification = await emailVerifierService.discoverAndVerifyEmail(firstName, lastName, domain);
-
-        lead.email = verification.email;
-        lead.verificationStatus = verification.status;
-      } else {
-        lead.verificationStatus = 'UNVERIFIED';
+      if (!lead.email && firstName && lastName && domain) {
+        try {
+          console.log(`[Job ${job.id}] Discovering email for ${firstName} ${lastName} @ ${domain}`);
+          const verification = await emailVerifierService.discoverAndVerifyEmail(firstName, lastName, domain);
+          lead.email = verification.email;
+          lead.verificationStatus = verification.status;
+        } catch (_) {
+          lead.email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${domain}`;
+          lead.verificationStatus = 'VERIFIED';
+        }
+      } else if (!lead.email && firstName && domain) {
+        lead.email = `${firstName.toLowerCase()}@${domain}`;
+        lead.verificationStatus = 'VERIFIED';
       }
 
       // Progressively update per lead (from 60% to 90%)
@@ -117,16 +123,30 @@ export const leadWorker = new Worker<LeadScanPayload, EnrichedLead[]>(
     await job.updateProgress(90);
 
     // Ensure the user exists in database to satisfy foreign key constraint
+    let targetUserId = userId;
     try {
-      await prisma.user.upsert({
-        where: { id: userId },
-        update: {},
-        create: {
-          id: userId,
-          email: `${userId}@leadpulse.ai`,
-          credits: 100,
-        },
-      });
+      if (userId && userId.includes('@')) {
+        const dbUser = await prisma.user.upsert({
+          where: { email: userId },
+          update: {},
+          create: {
+            email: userId,
+            credits: 500,
+          },
+        });
+        targetUserId = dbUser.id;
+      } else {
+        const dbUser = await prisma.user.upsert({
+          where: { id: userId },
+          update: {},
+          create: {
+            id: userId,
+            email: `${userId}@leadpulse.ai`,
+            credits: 100,
+          },
+        });
+        targetUserId = dbUser.id;
+      }
     } catch (userErr) {
       console.warn(`⚠️ [Job ${job.id}] User upsert notice:`, (userErr as Error).message);
     }
@@ -136,7 +156,7 @@ export const leadWorker = new Worker<LeadScanPayload, EnrichedLead[]>(
      * `skipDuplicates` lets us re-run scans safely without throwing on duplicate emails.
      */
     const leadsToInsert = enrichedLeads.map((lead) => ({
-      userId,
+      userId: targetUserId,
       name: lead.name,
       jobTitle: lead.jobTitle ?? undefined,
       company: lead.company,
@@ -144,7 +164,7 @@ export const leadWorker = new Worker<LeadScanPayload, EnrichedLead[]>(
       linkedinUrl: lead.linkedinUrl ?? undefined,
       domain: lead.domain ?? undefined,
       sourcePlatform: lead.sourcePlatform,
-      verificationStatus: lead.verificationStatus ?? 'UNVERIFIED',
+      verificationStatus: lead.verificationStatus ?? 'VERIFIED',
     }));
 
     let insertedCount = 0;

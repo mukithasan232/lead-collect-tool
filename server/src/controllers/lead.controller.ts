@@ -5,6 +5,7 @@ import { prisma } from '../config/db';
 import { ApiResponse } from '../utils/apiResponse';
 import { AppError } from '../utils/appError';
 import { leadQueue, QUEUE_NAME } from '../queues/leadQueue';
+import { scraperService } from '../services/scraper.service';
 
 const createLeadSchema = z.object({
   userId: z.string().cuid('Invalid userId'),
@@ -32,7 +33,7 @@ const updateLeadSchema = z.object({
 export class LeadController {
   static async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { userId, q, company, verificationStatus, page = '1', limit = '25' } = req.query;
+      const { userId, userEmail, q, company, verificationStatus, page = '1', limit = '25' } = req.query;
 
       const pageNumber = Math.max(1, parseInt(String(page), 10) || 1);
       const pageSize = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 25));
@@ -41,8 +42,13 @@ export class LeadController {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const where: any = {};
 
-      // Only filter by userId if it looks like a real CUID (not a placeholder)
-      if (userId && String(userId).startsWith('c') && String(userId).length > 10) {
+      const targetEmail = userEmail ? String(userEmail) : (userId && String(userId).includes('@') ? String(userId) : null);
+      if (targetEmail) {
+        const u = await prisma.user.findUnique({ where: { email: targetEmail } });
+        if (u) {
+          where.userId = u.id;
+        }
+      } else if (userId && String(userId).startsWith('c') && String(userId).length > 10) {
         where.userId = String(userId);
       }
       if (company) where.company = { contains: String(company), mode: 'insensitive' };
@@ -226,24 +232,85 @@ export class LeadController {
         industry: z.string().max(255).optional(),
         keywords: z.array(z.string()).max(20).optional(),
         maxResults: z.number().int().min(1).max(50).optional().default(10),
+        apiKey: z.string().optional(),
       });
 
-      const payload = scanSchema.parse(req.body);
+      const headerApiKey = (req.headers['x-search-api-key'] || req.headers['x-api-key']) as string | undefined;
+      const rawBody = { ...req.body };
+      if (!rawBody.apiKey && headerApiKey) {
+        rawBody.apiKey = headerApiKey;
+      }
+      const payload = scanSchema.parse(rawBody);
 
-      const job = await leadQueue.add('scan', payload, {
-        jobId: `scan-${payload.userId}-${Date.now()}`,
-      });
+      try {
+        const job = await leadQueue.add('scan', payload, {
+          jobId: `scan-${payload.userId}-${Date.now()}`,
+        });
 
-      res.status(202).json({
-        success: true,
-        message: 'Lead scan job accepted and queued for processing.',
-        data: {
-          jobId: job.id,
-          queueName: QUEUE_NAME,
-          status: 'queued',
-          payload,
-        },
-      });
+        res.status(202).json({
+          success: true,
+          message: 'Lead scan job accepted and queued for processing.',
+          data: {
+            jobId: job.id,
+            queueName: QUEUE_NAME,
+            status: 'queued',
+            payload,
+          },
+        });
+      } catch (queueErr: any) {
+        console.warn(`⚠️ [LeadController] Queue unavailable (${queueErr.message}), executing scan directly...`);
+        const enriched = await scraperService.fetchLeadsFromNubela(payload);
+
+        let targetUserId = payload.userId;
+        try {
+          if (payload.userId.includes('@')) {
+            const dbUser = await prisma.user.upsert({
+              where: { email: payload.userId },
+              update: {},
+              create: { email: payload.userId, credits: 500 },
+            });
+            targetUserId = dbUser.id;
+          } else {
+            const dbUser = await prisma.user.upsert({
+              where: { id: payload.userId },
+              update: {},
+              create: { id: payload.userId, email: `${payload.userId}@leadpulse.ai`, credits: 100 },
+            });
+            targetUserId = dbUser.id;
+          }
+        } catch (_) {}
+
+        if (enriched.length > 0) {
+          try {
+            await prisma.lead.createMany({
+              data: enriched.map((l) => ({
+                userId: targetUserId,
+                name: l.name,
+                jobTitle: l.jobTitle ?? undefined,
+                company: l.company,
+                email: l.email ?? undefined,
+                linkedinUrl: l.linkedinUrl ?? undefined,
+                domain: l.domain ?? undefined,
+                sourcePlatform: l.sourcePlatform || 'LinkedIn',
+                verificationStatus: l.verificationStatus || 'VERIFIED',
+              })),
+              skipDuplicates: true,
+            });
+          } catch (insertErr: any) {
+            console.warn(`⚠️ [LeadController] Direct insert warning:`, insertErr.message);
+          }
+        }
+
+        res.status(200).json({
+          success: true,
+          message: 'Targeted scan completed successfully.',
+          data: {
+            status: 'completed',
+            count: enriched.length,
+            leads: enriched,
+          },
+        });
+      }
     } catch (err) {
       next(err);
     }

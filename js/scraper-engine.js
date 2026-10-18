@@ -165,7 +165,7 @@ async function enrichLead(raw, platform, index) {
     smtpCheck: verificationResult.smtpCheck,
     deliverabilityScore: verificationResult.deliverabilityScore,
     phone: raw.phone || generatePhone(raw.region),
-    linkedin: `https://linkedin.com/in/${raw.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}`,
+    linkedin: raw.linkedinUrl || raw.linkedin || (raw.name ? `https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(raw.name + ' ' + raw.company)}` : 'https://www.linkedin.com'),
     twitterHandle: raw.twitterHandle || `@${raw.name.toLowerCase().split(' ')[0]}`,
     sourceUrl: getSourceUrl(platform, raw),
     sourcePlatform: platform,

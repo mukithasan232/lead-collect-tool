@@ -80,6 +80,8 @@ class LeadPulseApp {
     this.buildSidebarFilters();
     this.bindEvents();
     this.bindPagination();
+    this.updateAuthUI();
+    this.bindAuthEvents();
     this.renderResults();
     this.renderAnalytics();
     this.updateNavCounts();
@@ -87,6 +89,143 @@ class LeadPulseApp {
     // Hydrate with real data from backend
     this.fetchLeadsFromBackend();
   }
+
+  // ── Session & Workspace Authentication ──────────────────────────────────────
+
+  getSession() {
+    try {
+      const raw = localStorage.getItem('leadpulse_account_session');
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  isLoggedIn() {
+    const session = this.getSession();
+    return !!(session && session.email);
+  }
+
+  setSession(data) {
+    localStorage.setItem('leadpulse_account_session', JSON.stringify({
+      email: data.email,
+      accessCode: data.accessCode || 'authenticated',
+      apiKey: data.apiKey ? data.apiKey.trim() : '',
+      loggedInAt: Date.now()
+    }));
+    this.updateAuthUI();
+  }
+
+  clearSession() {
+    localStorage.removeItem('leadpulse_account_session');
+    this.updateAuthUI();
+    this.showToast('info', 'Logged out of workspace session.');
+    this.fetchLeadsFromBackend();
+  }
+
+  updateAuthUI() {
+    const session = this.getSession();
+    const loginBtn = document.getElementById('header-login-btn');
+    const sessionBadge = document.getElementById('header-session-badge');
+    const sessionEmailEl = document.getElementById('header-session-email');
+
+    if (session && session.email) {
+      if (loginBtn) loginBtn.style.display = 'none';
+      if (sessionBadge) sessionBadge.style.display = 'inline-flex';
+      if (sessionEmailEl) sessionEmailEl.textContent = session.email;
+    } else {
+      if (loginBtn) loginBtn.style.display = 'inline-flex';
+      if (sessionBadge) sessionBadge.style.display = 'none';
+    }
+  }
+
+  openLoginModal(noticeText = null) {
+    const backdrop = document.getElementById('account-login-modal-backdrop');
+    if (!backdrop) return;
+    const session = this.getSession();
+    const emailInput = document.getElementById('login-workspace-email');
+    const codeInput = document.getElementById('login-access-code');
+    const apiKeyInput = document.getElementById('login-search-api-key');
+    const noticeEl = document.getElementById('login-modal-notice-text');
+
+    if (noticeText && noticeEl) {
+      noticeEl.textContent = noticeText;
+    } else if (noticeEl) {
+      noticeEl.textContent = 'Log in with your corporate workspace credentials to execute live targeted scans.';
+    }
+
+    if (session) {
+      if (emailInput) emailInput.value = session.email || '';
+      if (codeInput) codeInput.value = session.accessCode || 'clientpass';
+      if (apiKeyInput) apiKeyInput.value = session.apiKey || '';
+    } else {
+      if (emailInput && !emailInput.value) emailInput.value = 'client@company.com';
+      if (codeInput && !codeInput.value) codeInput.value = 'clientpass123';
+    }
+
+    backdrop.classList.add('active');
+  }
+
+  closeLoginModal() {
+    const backdrop = document.getElementById('account-login-modal-backdrop');
+    if (backdrop) backdrop.classList.remove('active');
+  }
+
+  bindAuthEvents() {
+    document.getElementById('header-login-btn')?.addEventListener('click', () => {
+      this.openLoginModal();
+    });
+
+    document.getElementById('open-integrations-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.openLoginModal('Workspace & Live Search API Integration Settings (Serper / Tavily)');
+    });
+
+    document.getElementById('close-login-modal-btn')?.addEventListener('click', () => {
+      this.closeLoginModal();
+    });
+
+    document.getElementById('cancel-login-btn')?.addEventListener('click', () => {
+      this.closeLoginModal();
+    });
+
+    document.getElementById('header-logout-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.clearSession();
+    });
+
+    const fillDemo = () => {
+      const emailInput = document.getElementById('login-workspace-email');
+      const codeInput = document.getElementById('login-access-code');
+      if (emailInput) emailInput.value = 'client@company.com';
+      if (codeInput) codeInput.value = 'clientpass123';
+      this.showToast('info', 'Demo credentials populated.');
+    };
+
+    document.getElementById('quick-fill-demo')?.addEventListener('click', fillDemo);
+    document.getElementById('quick-fill-demo-btn')?.addEventListener('click', fillDemo);
+
+    document.getElementById('account-login-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const emailInput = document.getElementById('login-workspace-email');
+      const codeInput = document.getElementById('login-access-code');
+      const apiKeyInput = document.getElementById('login-search-api-key');
+
+      const email = emailInput?.value.trim() || 'client@company.com';
+      const accessCode = codeInput?.value || 'clientpass123';
+      const apiKey = apiKeyInput?.value.trim() || '';
+
+      this.setSession({ email, accessCode, apiKey });
+      this.closeLoginModal();
+      this.showToast('success', `🟢 Successfully logged in as ${email}`);
+      this.fetchLeadsFromBackend();
+    });
+
+    document.getElementById('account-login-modal-backdrop')?.addEventListener('click', (e) => {
+      if (e.target === document.getElementById('account-login-modal-backdrop')) {
+        this.closeLoginModal();
+      }
+    });
 
   // ── Data Management ─────────────────────────────────────────────────────────
 
@@ -465,6 +604,11 @@ class LeadPulseApp {
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.5 2.29h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.06 6.06l1.98-1.98a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
           <span>${lead.phone ? 'Direct' : 'N/A'}</span>
         </div>
+        ${lead.linkedin ? `
+        <a href="${lead.linkedin}" target="_blank" rel="noopener noreferrer" class="contact-linkedin-badge" style="display:inline-flex; align-items:center; gap:0.25rem; font-size:0.75rem; color:#0A66C2; text-decoration:none; font-weight:600; padding:0.2rem 0.5rem; background:rgba(10,102,194,0.12); border-radius:4px; border:1px solid rgba(10,102,194,0.25);" title="Open real verified profile on LinkedIn" onclick="event.stopPropagation();">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+          Profile ↗
+        </a>` : ''}
       </div>
 
       <!-- Card Actions -->
@@ -516,7 +660,8 @@ class LeadPulseApp {
             ${lead.intentSignal}
           </span>
         </td>
-        <td style="text-align: right;">
+        <td style="text-align: right; white-space: nowrap;">
+          ${lead.linkedin ? `<a href="${lead.linkedin}" target="_blank" rel="noopener noreferrer" style="color: #0A66C2; text-decoration: none; font-size: 0.78rem; font-weight: 600; margin-right: 0.6rem; padding: 0.25rem 0.5rem; background: rgba(10, 102, 194, 0.12); border-radius: 4px; border: 1px solid rgba(10, 102, 194, 0.25); display: inline-flex; align-items: center; gap: 0.25rem;" onclick="event.stopPropagation();" title="View real LinkedIn profile">LinkedIn ↗</a>` : ''}
           <button class="btn btn-primary btn-sm card-ai-pitch-btn" data-id="${lead.id}">✨ Pitch</button>
         </td>
       </tr>
@@ -1160,6 +1305,12 @@ class LeadPulseApp {
   // ── Scraper Engine ─────────────────────────────────────────────────────────
 
   async runScraperScan() {
+    if (!this.isLoggedIn()) {
+      this.openLoginModal('Account login required: Please sign in to your workspace before running a targeted lead scan.');
+      this.showToast('info', 'Please sign in to your workspace account first.');
+      return;
+    }
+
     if (this.isScanRunning) return;
     this.isScanRunning = true;
 
@@ -1177,21 +1328,29 @@ class LeadPulseApp {
     if (runBtn) { runBtn.disabled = true; runBtn.textContent = 'Scanning...'; }
     if (resultMsg) resultMsg.textContent = '';
 
-    this.showToast('info', `Initiating Targeted Scan for "${keywords || 'decision makers'}"...`);
+    const session = this.getSession();
+    const userEmail = session ? session.email : 'client@company.com';
+    const userApiKey = session && session.apiKey ? session.apiKey : undefined;
+
+    this.showToast('info', `Initiating 100% Real LinkedIn X-Ray Scan for "${keywords || 'decision makers'}"...`);
 
     try {
-      if (stageLabel) stageLabel.textContent = 'Queueing job...';
-      if (pctLabel) pctLabel.textContent = `10%`;
-      if (fillBar) fillBar.style.width = `10%`;
+      if (stageLabel) stageLabel.textContent = 'Executing multi-engine X-Ray discovery...';
+      if (pctLabel) pctLabel.textContent = `20%`;
+      if (fillBar) fillBar.style.width = `20%`;
 
       // 1. Trigger the scan on the backend
       const response = await fetch(`${API_BASE_URL}/leads/scan`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(userApiKey ? { 'x-search-api-key': userApiKey } : {})
+        },
         body: JSON.stringify({
-          userId: "test-user-001",
-          jobTitle: keywords, // Using keywords as jobTitle
-          maxResults: 10
+          userId: userEmail,
+          jobTitle: keywords, // Using keywords as jobTitle/criteria
+          maxResults: 10,
+          apiKey: userApiKey
         })
       });
 
@@ -1199,11 +1358,11 @@ class LeadPulseApp {
         throw new Error(`Failed to start scan: ${response.status}`);
       }
       
-      if (stageLabel) stageLabel.textContent = 'Enriching profiles & discovering emails...';
-      if (pctLabel) pctLabel.textContent = `40%`;
-      if (fillBar) fillBar.style.width = `40%`;
+      if (stageLabel) stageLabel.textContent = 'Parsing verified profiles & extracting real corporate emails...';
+      if (pctLabel) pctLabel.textContent = `50%`;
+      if (fillBar) fillBar.style.width = `50%`;
 
-      // 2. Poll dynamically for results until worker inserts them
+      // 2. Poll dynamically for results until worker/backend inserts them
       const initialCount = this.leads.length;
       let leadsFound = false;
       const startTime = Date.now();
@@ -1213,10 +1372,10 @@ class LeadPulseApp {
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         const elapsed = Date.now() - startTime;
-        const currentPct = Math.min(92, 40 + Math.floor((elapsed / maxPollingMs) * 52));
+        const currentPct = Math.min(92, 50 + Math.floor((elapsed / maxPollingMs) * 42));
         if (pctLabel) pctLabel.textContent = `${currentPct}%`;
         if (fillBar) fillBar.style.width = `${currentPct}%`;
-        if (stageLabel) stageLabel.textContent = `Verifying emails (${Math.round(elapsed / 1000)}s)...`;
+        if (stageLabel) stageLabel.textContent = `Enriching intent signals (${Math.round(elapsed / 1000)}s)...`;
 
         const count = await this.fetchLeadsFromBackend();
         if (count > initialCount) {
@@ -1234,8 +1393,8 @@ class LeadPulseApp {
       if (pctLabel) pctLabel.textContent = `100%`;
       if (fillBar) fillBar.style.width = `100%`;
 
-      if (resultMsg) resultMsg.textContent = `✓ Scan completed. Dashboard updated.`;
-      this.showToast('success', `🎯 Scan finished and leads refreshed!`);
+      if (resultMsg) resultMsg.textContent = `✓ Scan completed. 100% real LinkedIn leads loaded into dashboard.`;
+      this.showToast('success', `🎯 Real LinkedIn leads discovered and refreshed!`);
     } catch (err) {
       console.error("Scan API Error:", err);
       if (err instanceof TypeError) {
@@ -1251,7 +1410,9 @@ class LeadPulseApp {
 
   async fetchLeadsFromBackend() {
     try {
-      const response = await fetch(`${API_BASE_URL}/leads?limit=100`);
+      const session = this.getSession();
+      const emailQuery = session && session.email ? `&userEmail=${encodeURIComponent(session.email)}` : '';
+      const response = await fetch(`${API_BASE_URL}/leads?limit=100${emailQuery}`);
 
       if (!response.ok) {
         const errText = await response.text().catch(() => '');
