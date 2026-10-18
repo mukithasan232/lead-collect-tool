@@ -648,15 +648,16 @@ export const scraperService = {
    * Serper.dev Search Engine
    * POST https://google.serper.dev/search
    */
-  async searchViaSerper(searchQuery: string, apiKey: string, num: number = 30): Promise<any[]> {
+  async searchViaSerper(searchQuery: string, apiKey: string, targetCount: number = 30): Promise<any[]> {
     const finalApiKey = apiKey?.trim() || env.SERPER_API_KEY || '6f4ee01927a1bce8cd2a9ff7ca89c6ad95e885f7';
-    console.log(`🔍 [ScraperService] [Serper.dev Engine] Querying Google SERP for "${searchQuery}" (num: ${num})...`);
+    console.log(`🔍 [ScraperService] [Serper.dev Engine] Querying Google SERP for "${searchQuery}" (target: ${targetCount})...`);
 
     const headers = {
       'X-API-KEY': finalApiKey,
       'Content-Type': 'application/json',
     };
 
+    // 1. First attempt num: 30 directly
     try {
       const response = await axios.post(
         'https://google.serper.dev/search',
@@ -666,34 +667,50 @@ export const scraperService = {
           hl: 'en',
           num: 30,
         },
-        {
-          headers,
-          timeout: 12000,
-        }
+        { headers, timeout: 8000 }
       );
 
       const organic = response.data?.organic || [];
-      console.log(`✅ [ScraperService] Serper.dev returned ${organic.length} organic search results.`);
-      return organic;
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || err.message || '';
-      if (errMsg.includes('free account') || err.response?.status === 400) {
-        try {
-          console.log(`ℹ️ [ScraperService] Retrying Serper with standard free-tier params...`);
-          const fallbackRes = await axios.post(
-            'https://google.serper.dev/search',
-            { q: searchQuery, gl: 'us', hl: 'en', num: 10 },
-            { headers, timeout: 12000 }
-          );
-          const organic = fallbackRes.data?.organic || [];
-          console.log(`✅ [ScraperService] Serper.dev returned ${organic.length} organic search results.`);
-          return organic;
-        } catch (retryErr: any) {
-          console.error(`❌ [ScraperService] Serper.dev fallback error:`, retryErr.response?.data || retryErr.message);
-        }
-      } else {
-        console.error(`❌ [ScraperService] Serper.dev request error:`, err.response?.data || err.message);
+      if (organic.length >= 20) {
+        console.log(`✅ [ScraperService] Serper.dev returned ${organic.length} organic search results in single call.`);
+        return organic;
       }
+    } catch (err: any) {
+      console.log(`ℹ️ [ScraperService] Serper single batch notice: ${err.response?.data?.message || err.message}. Engaging parallel pagination...`);
+    }
+
+    // 2. Parallel multi-page pagination (pages 1, 2, 3, 4) to ensure 30-50 real organic leads
+    try {
+      const pages = [1, 2, 3, 4];
+      const pageRequests = pages.map((page) =>
+        axios.post(
+          'https://google.serper.dev/search',
+          {
+            q: searchQuery,
+            gl: 'us',
+            hl: 'en',
+            num: 10,
+            page,
+          },
+          { headers, timeout: 8000 }
+        )
+        .then((res) => res.data?.organic || [])
+        .catch(() => [])
+      );
+
+      const pageResults = await Promise.all(pageRequests);
+      const combined = pageResults.flat();
+      const seenLinks = new Set<string>();
+      const uniqueOrganic = combined.filter((item) => {
+        if (!item.link || seenLinks.has(item.link.toLowerCase())) return false;
+        seenLinks.add(item.link.toLowerCase());
+        return true;
+      });
+
+      console.log(`✅ [ScraperService] Serper parallel pagination collected ${uniqueOrganic.length} organic leads.`);
+      return uniqueOrganic;
+    } catch (retryErr: any) {
+      console.error(`❌ [ScraperService] Serper pagination error:`, retryErr.message);
       return [];
     }
   },
@@ -709,11 +726,11 @@ export const scraperService = {
       location = 'Global',
       industry = 'B2B SaaS',
       keywords,
-      maxResults = 10,
+      maxResults = 50,
       apiKey,
     } = payload;
 
-    const count = Math.min(Math.max(1, maxResults), 50);
+    const count = Math.min(Math.max(1, maxResults || 50), 50);
 
     // Build the query text
     let rawQuery = directQuery?.trim() || '';
@@ -732,7 +749,7 @@ export const scraperService = {
     console.log(`🚀 [ScraperService] Multi-Platform Real-Time Scan: platform="${platformLabel}" (${platformKey}), query="${searchQuery}", targetCount=${count}`);
 
     const activeApiKey = apiKey?.trim() || env.SERPER_API_KEY || '6f4ee01927a1bce8cd2a9ff7ca89c6ad95e885f7';
-    const organicItems = await this.searchViaSerper(searchQuery, activeApiKey, 50);
+    const organicItems = await this.searchViaSerper(searchQuery, activeApiKey, count);
 
     const leads: EnrichedLead[] = [];
     const seenUrls = new Set<string>();

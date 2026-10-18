@@ -1411,7 +1411,7 @@ class LeadPulseApp {
           query: keywords,
           platform: selectedPlatform,
           jobTitle: keywords,
-          maxResults: 10,
+          maxResults: 50,
           apiKey: userApiKey
         })
       });

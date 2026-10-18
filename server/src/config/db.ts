@@ -7,6 +7,13 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
+// Circuit breaker flag
+export let isDbConnected = false;
+
+export function setDbConnected(value: boolean): void {
+  isDbConnected = value;
+}
+
 export function resolveDatabaseUrl(): string {
   let url = process.env.DATABASE_URL || env.DATABASE_URL || '';
 
@@ -33,7 +40,7 @@ export const prisma =
   global.prisma ||
   new PrismaClient({
     datasources: activeDbUrl ? { db: { url: activeDbUrl } } : undefined,
-    log: env.isDev ? ['query', 'error', 'warn'] : ['error'],
+    log: env.isDev ? ['error'] : ['error'],
   });
 
 if (env.isDev) {
@@ -42,17 +49,25 @@ if (env.isDev) {
 
 export async function connectDB(): Promise<void> {
   try {
-    await prisma.$connect();
+    const connectPromise = prisma.$connect();
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Prisma connection timed out after 2500ms')), 2500)
+    );
+
+    await Promise.race([connectPromise, timeoutPromise]);
+    isDbConnected = true;
     console.log('✅ PostgreSQL database connected successfully via Prisma.');
   } catch (error: any) {
-    console.warn('⚠️ Non-fatal: PostgreSQL connection unreachable (P1001 or degraded pooler). In-memory fallback active:', error?.message || error);
-    // Never call process.exit(1) or throw to prevent crashing the server
+    isDbConnected = false;
+    console.log('⚡ DB unreachable — running in high-speed In-Memory + Disk Persistence mode');
   }
 }
 
 export async function disconnectDB(): Promise<void> {
+  if (!isDbConnected) return;
   try {
     await prisma.$disconnect();
+    isDbConnected = false;
     console.log('🔌 PostgreSQL database disconnected.');
   } catch (error) {
     console.warn('⚠️ Error disconnecting Prisma client:', error);

@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { prisma } from '../config/db';
+import { prisma, isDbConnected } from '../config/db';
+import { inMemoryLeadStore } from './lead.controller';
+import { saveLeadsToDisk } from '../utils/localStore';
 
 const SYSTEM_PROMPT = `[IDENTITY & ROLE]
 You are "Nova," an elite AI Solutions Architect and Lead Generation Agent for Codernest, a premium B2B custom software agency. Your primary goal is to welcome website visitors, qualify high-ticket leads, and intelligently route them to book a consultation call.
@@ -66,27 +68,43 @@ export const chatController = {
         try {
           const leadData = JSON.parse(jsonMatch[0]);
           if (leadData.user_email) {
-            // Find or create an admin user to assign the lead to
-            let adminUser = await prisma.user.findFirst();
-            if (!adminUser) {
-              adminUser = await prisma.user.create({
-                data: { email: 'admin@codernest.com' }
-              });
-            }
-
-            // Save lead to database
-            await prisma.lead.create({
-              data: {
-                userId: adminUser.id,
+            if (isDbConnected) {
+              try {
+                let adminUser = await prisma.user.findFirst();
+                if (!adminUser) {
+                  adminUser = await prisma.user.create({
+                    data: { email: 'admin@codernest.com' },
+                  });
+                }
+                await prisma.lead.create({
+                  data: {
+                    userId: adminUser.id,
+                    email: leadData.user_email,
+                    name: 'Website Visitor',
+                    company: 'Unknown',
+                    jobTitle: 'Lead',
+                    sourcePlatform: 'Nova AI Agent',
+                    verificationStatus: 'UNVERIFIED',
+                    domain: leadData.user_email.split('@')[1] || null,
+                  },
+                });
+              } catch (chatDbErr: any) {
+                console.warn('⚠️ [Nova Agent] DB write notice:', chatDbErr.message);
+              }
+            } else {
+              inMemoryLeadStore.unshift({
+                id: `lead_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
                 email: leadData.user_email,
-                name: 'Website Visitor', // Fallback name
+                name: 'Website Visitor',
                 company: 'Unknown',
                 jobTitle: 'Lead',
                 sourcePlatform: 'Nova AI Agent',
                 verificationStatus: 'UNVERIFIED',
-                domain: leadData.user_email.split('@')[1] || null
-              }
-            });
+                domain: leadData.user_email.split('@')[1] || null,
+                createdAt: new Date().toISOString(),
+              });
+              saveLeadsToDisk(inMemoryLeadStore);
+            }
             console.log(`✅ [Nova Agent] Captured and saved lead: ${leadData.user_email}`);
             
             // Remove the raw JSON block from the text sent back to the user

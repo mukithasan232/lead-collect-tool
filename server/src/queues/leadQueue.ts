@@ -3,7 +3,9 @@ import { Queue, Worker, Job } from 'bullmq';
 import { redisConnection } from '../config/redis';
 import { scraperService, NubelaRateLimitError } from '../services/scraper.service';
 import { emailVerifierService } from '../services/emailVerifier.service';
-import { prisma } from '../config/db';
+import { prisma, isDbConnected, setDbConnected } from '../config/db';
+import { inMemoryLeadStore } from '../controllers/lead.controller';
+import { saveLeadsToDisk } from '../utils/localStore';
 
 import { LeadScanPayload, EnrichedLead } from '../types/lead.types';
 
@@ -34,23 +36,17 @@ console.log(`📋 BullMQ Queue "${QUEUE_NAME}" initialised.`);
 
 /**
  * BullMQ Worker — processes lead enrichment jobs off the queue.
- *
- * Pipeline per job:
- *   1. Fetch leads from Proxycurl via ScraperService.
- *   2. Filter out any leads that are already in the DB (dedup by email).
- *   3. Bulk-insert new leads via Prisma createMany (skipDuplicates).
- *   4. Return the list of persisted leads.
  */
 export const leadWorker = new Worker<LeadScanPayload, EnrichedLead[]>(
   QUEUE_NAME,
   async (job: Job<LeadScanPayload>): Promise<EnrichedLead[]> => {
     try {
-      const { userId, jobTitle, location, industry, keywords, maxResults } = job.data;
+      const { userId, jobTitle, location, industry, keywords, maxResults = 50 } = job.data;
 
       console.log(`⚙️  [Job ${job.id}] Starting — userId="${userId}" | ` +
-        `jobTitle="${jobTitle}" | location="${location}" | industry="${industry}"`);
+        `jobTitle="${jobTitle}" | location="${location}" | industry="${industry}" | targetCount=${maxResults}`);
 
-      // ── Step 1: Fetch leads from Nubela ───────────────────────────────────
+      // ── Step 1: Fetch leads via ScraperService ─────────────────────────────
       await job.updateProgress(10);
 
       let enrichedLeads: EnrichedLead[];
@@ -63,18 +59,16 @@ export const leadWorker = new Worker<LeadScanPayload, EnrichedLead[]>(
           location,
           industry,
           keywords,
-          maxResults,
+          maxResults: maxResults || 50,
           apiKey: job.data.apiKey,
         });
       } catch (err: any) {
         if (err instanceof NubelaRateLimitError) {
-          // Surface rate-limit clearly so BullMQ can schedule a retry
           console.warn(
             `⚠️  [Job ${job.id}] Rate limit hit. ` +
-            `Retry after ${err.retryAfterSeconds}s. ` +
-            `BullMQ will retry with exponential back-off.`
+            `Retry after ${err.retryAfterSeconds}s.`
           );
-          throw err; // re-throw so BullMQ marks job as failed → triggers retry
+          throw err;
         }
         console.error(`❌ [Job ${job.id}] Scraper fetch error:`, err.message);
         throw err;
@@ -89,114 +83,135 @@ export const leadWorker = new Worker<LeadScanPayload, EnrichedLead[]>(
         return [];
       }
 
-    // ── Step 2: Email Discovery & Verification ───────────────────────────────
-    await job.updateProgress(60);
+      // ── Step 2: Email Discovery & Verification ─────────────────────────────
+      await job.updateProgress(60);
 
-    for (let i = 0; i < enrichedLeads.length; i++) {
-      const lead = enrichedLeads[i];
-      // Basic domain extraction if missing
-      const domain = lead.domain || lead.company.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() + '.com';
-      
-      const nameParts = lead.name.split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+      for (let i = 0; i < enrichedLeads.length; i++) {
+        const lead = enrichedLeads[i];
+        const domain = lead.domain || lead.company.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() + '.com';
+        
+        const nameParts = lead.name.split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
 
-      if (!lead.email && firstName && lastName && domain) {
-        try {
-          console.log(`[Job ${job.id}] Discovering email for ${firstName} ${lastName} @ ${domain}`);
-          const verification = await emailVerifierService.discoverAndVerifyEmail(firstName, lastName, domain);
-          lead.email = verification.email;
-          lead.verificationStatus = verification.status;
-        } catch (_) {
-          lead.email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${domain}`;
+        if (!lead.email && firstName && lastName && domain) {
+          try {
+            const verification = await emailVerifierService.discoverAndVerifyEmail(firstName, lastName, domain);
+            lead.email = verification.email;
+            lead.verificationStatus = verification.status;
+          } catch (_) {
+            lead.email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${domain}`;
+            lead.verificationStatus = 'VERIFIED';
+          }
+        } else if (!lead.email && firstName && domain) {
+          lead.email = `${firstName.toLowerCase()}@${domain}`;
           lead.verificationStatus = 'VERIFIED';
         }
-      } else if (!lead.email && firstName && domain) {
-        lead.email = `${firstName.toLowerCase()}@${domain}`;
-        lead.verificationStatus = 'VERIFIED';
+
+        const prog = 60 + Math.floor(((i + 1) / enrichedLeads.length) * 30);
+        await job.updateProgress(prog);
       }
 
-      // Progressively update per lead (from 60% to 90%)
-      const prog = 60 + Math.floor(((i + 1) / enrichedLeads.length) * 30);
-      await job.updateProgress(prog);
-    }
+      // ── Step 3: Persistence with Instant Circuit Breaker ────────────────────
+      await job.updateProgress(90);
 
-    // ── Step 3: Bulk-insert into PostgreSQL via Prisma ───────────────────────
-    await job.updateProgress(90);
+      // If DB is disconnected, save to high-speed in-memory store and disk in <5ms
+      if (!isDbConnected) {
+        console.log(`⚡ [Job ${job.id}] DB circuit breaker active — persisting ${enrichedLeads.length} leads to disk store.`);
+        for (const lead of enrichedLeads) {
+          const existingIdx = inMemoryLeadStore.findIndex(
+            (item) => item.linkedinUrl && lead.linkedinUrl && item.linkedinUrl.toLowerCase() === lead.linkedinUrl.toLowerCase()
+          );
+          const formatted = {
+            id: `lead_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            ...lead,
+            createdAt: new Date().toISOString(),
+          };
+          if (existingIdx >= 0) {
+            inMemoryLeadStore[existingIdx] = { ...inMemoryLeadStore[existingIdx], ...formatted };
+          } else {
+            inMemoryLeadStore.unshift(formatted);
+          }
+        }
+        saveLeadsToDisk(inMemoryLeadStore);
 
-    // Ensure the user exists in database to satisfy foreign key constraint
-    let targetUserId = userId;
-    try {
-      if (userId && userId.includes('@')) {
-        const dbUser = await prisma.user.upsert({
-          where: { email: userId },
-          update: {},
-          create: {
-            email: userId,
-            credits: 500,
-          },
-        });
-        targetUserId = dbUser.id;
-      } else {
-        const dbUser = await prisma.user.upsert({
-          where: { id: userId },
-          update: {},
-          create: {
-            id: userId,
-            email: `${userId}@leadpulse.ai`,
-            credits: 100,
-          },
-        });
-        targetUserId = dbUser.id;
+        await job.updateProgress(100);
+        console.log(`✅ [Job ${job.id}] Done — ${enrichedLeads.length} fetched and persisted to local store.`);
+        return enrichedLeads;
       }
-    } catch (userErr) {
-      console.warn(`⚠️ [Job ${job.id}] User upsert notice:`, (userErr as Error).message);
-    }
 
-    /**
-     * Map EnrichedLead → Prisma Lead create input.
-     * `skipDuplicates` lets us re-run scans safely without throwing on duplicate emails.
-     */
-    const leadsToInsert = enrichedLeads.map((lead) => ({
-      userId: targetUserId,
-      name: lead.name,
-      jobTitle: lead.jobTitle ?? undefined,
-      company: lead.company,
-      email: lead.email ?? undefined,
-      linkedinUrl: lead.linkedinUrl ?? undefined,
-      domain: lead.domain ?? undefined,
-      sourcePlatform: lead.sourcePlatform,
-      verificationStatus: lead.verificationStatus ?? 'VERIFIED',
-    }));
+      // If DB is connected, attempt safe Prisma bulk insert
+      let targetUserId = userId;
+      try {
+        if (userId && userId.includes('@')) {
+          const dbUser = await prisma.user.upsert({
+            where: { email: userId },
+            update: {},
+            create: {
+              email: userId,
+              credits: 500,
+            },
+          });
+          targetUserId = dbUser.id;
+        } else {
+          const dbUser = await prisma.user.upsert({
+            where: { id: userId },
+            update: {},
+            create: {
+              id: userId,
+              email: `${userId}@leadpulse.ai`,
+              credits: 100,
+            },
+          });
+          targetUserId = dbUser.id;
+        }
+      } catch (userErr: any) {
+        console.warn(`⚠️ [Job ${job.id}] User upsert notice:`, userErr.message);
+      }
 
-    let insertedCount = 0;
-    try {
-      const result = await prisma.lead.createMany({
-        data: leadsToInsert,
-        skipDuplicates: true, // idempotent — won't throw on repeated scans
-      });
-      insertedCount = result.count;
-    } catch (dbErr) {
-      console.warn(
-        `⚠️ [Job ${job.id}] Database createMany notice, falling back to individual inserts:`,
-        (dbErr as Error).message
+      const leadsToInsert = enrichedLeads.map((lead) => ({
+        userId: targetUserId,
+        name: lead.name,
+        jobTitle: lead.jobTitle ?? undefined,
+        company: lead.company,
+        email: lead.email ?? undefined,
+        linkedinUrl: lead.linkedinUrl ?? undefined,
+        domain: lead.domain ?? undefined,
+        sourcePlatform: lead.sourcePlatform,
+        verificationStatus: lead.verificationStatus ?? 'VERIFIED',
+      }));
+
+      let insertedCount = 0;
+      try {
+        const result = await prisma.lead.createMany({
+          data: leadsToInsert,
+          skipDuplicates: true,
+        });
+        insertedCount = result.count;
+      } catch (dbErr: any) {
+        console.warn(`⚠️ [Job ${job.id}] Database createMany notice:`, dbErr.message);
+        if (dbErr.message?.includes('P1001') || dbErr.message?.includes('reach database')) {
+          setDbConnected(false); // Trip circuit breaker immediately
+        }
+        // Save to in-memory store instead of sequential database create loop!
+        for (const lead of enrichedLeads) {
+          inMemoryLeadStore.unshift({
+            id: `lead_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            ...lead,
+            createdAt: new Date().toISOString(),
+          });
+        }
+        saveLeadsToDisk(inMemoryLeadStore);
+      }
+
+      await job.updateProgress(100);
+
+      console.log(
+        `✅ [Job ${job.id}] Done — ${enrichedLeads.length} fetched, ` +
+        `${insertedCount} new leads inserted into DB (${enrichedLeads.length - insertedCount} skipped as duplicates).`
       );
-      for (const item of leadsToInsert) {
-        try {
-          await prisma.lead.create({ data: item });
-          insertedCount++;
-        } catch (_) {}
-      }
-    }
 
-    await job.updateProgress(100);
-
-    console.log(
-      `✅ [Job ${job.id}] Done — ${enrichedLeads.length} fetched, ` +
-      `${insertedCount} new leads inserted into DB (${enrichedLeads.length - insertedCount} skipped as duplicates).`
-    );
-
-    return enrichedLeads;
+      return enrichedLeads;
     } catch (globalErr: any) {
       console.error(`❌ [Job ${job.id}] Critical worker error: ${globalErr.message}`);
       throw globalErr; // ensure the job fails gracefully without crashing the worker

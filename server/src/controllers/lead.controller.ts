@@ -1,35 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { EmailVerificationStatus } from '@prisma/client';
-import { prisma } from '../config/db';
+import { prisma, isDbConnected } from '../config/db';
 import { ApiResponse } from '../utils/apiResponse';
 import { AppError } from '../utils/appError';
-import { leadQueue, QUEUE_NAME } from '../queues/leadQueue';
-import { scraperService, VERIFIED_REAL_LINKEDIN_LEADS } from '../services/scraper.service';
+import { leadQueue } from '../queues/leadQueue';
+import { scraperService } from '../services/scraper.service';
+import { loadLeadsFromDisk, saveLeadsToDisk } from '../utils/localStore';
 
-// Memory cache for leads to guarantee 100% zero-404 verified leads are served even if DB pooler throttles
-export const inMemoryLeadStore: any[] = VERIFIED_REAL_LINKEDIN_LEADS.map((l, index) => ({
-  id: `lead_initial_${index + 1}`,
-  name: l.name,
-  jobTitle: l.jobTitle,
-  company: l.company,
-  email: l.email,
-  linkedinUrl: l.linkedinUrl,
-  domain: l.domain,
-  location: l.location,
-  region: l.region || 'North America',
-  industry: l.industry,
-  companySize: l.companySize || '51-200',
-  phone: l.phone || '+1 (415) 890-4421',
-  seniority: l.seniority || 'C-Level',
-  sourcePlatform: l.sourcePlatform || 'LinkedIn',
-  verificationStatus: l.verificationStatus || 'VERIFIED',
-  intentSignal: l.intentSignal,
-  intentCategory: l.intentCategory || 'tech_expansion',
-  confidence: l.confidence || 0.95,
-  pipelineStage: l.pipelineStage || 'discovered',
-  createdAt: new Date().toISOString(),
-}));
+// In-Memory Lead Store backed by disk persistence (server/data/leads.json)
+export const inMemoryLeadStore: any[] = loadLeadsFromDisk();
 
 const createLeadSchema = z.object({
   userId: z.string().cuid('Invalid userId'),
@@ -57,12 +37,49 @@ const updateLeadSchema = z.object({
 export class LeadController {
   static async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { userId, userEmail, q, company, verificationStatus, page = '1', limit = '25' } = req.query;
+      const { userId, userEmail, q, company, verificationStatus, page = '1', limit = '100' } = req.query;
 
       const pageNumber = Math.max(1, parseInt(String(page), 10) || 1);
-      const pageSize = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 25));
+      const pageSize = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 100));
       const skip = (pageNumber - 1) * pageSize;
 
+      // ── Circuit Breaker: When DB is unreachable, immediately serve from local store (0ms delay) ──
+      if (!isDbConnected) {
+        let filtered = [...inMemoryLeadStore];
+        if (q) {
+          const queryStr = String(q).toLowerCase();
+          filtered = filtered.filter(
+            (l) =>
+              (l.name && l.name.toLowerCase().includes(queryStr)) ||
+              (l.company && l.company.toLowerCase().includes(queryStr)) ||
+              (l.jobTitle && l.jobTitle.toLowerCase().includes(queryStr)) ||
+              (l.email && l.email.toLowerCase().includes(queryStr)) ||
+              (l.domain && l.domain.toLowerCase().includes(queryStr))
+          );
+        }
+        if (company) {
+          const compStr = String(company).toLowerCase();
+          filtered = filtered.filter((l) => l.company && l.company.toLowerCase().includes(compStr));
+        }
+        if (verificationStatus) {
+          filtered = filtered.filter((l) => String(l.verificationStatus).toUpperCase() === String(verificationStatus).toUpperCase());
+        }
+
+        const paginated = filtered.slice(skip, skip + pageSize);
+        ApiResponse.success(res, {
+          message: 'Leads retrieved successfully (High-Speed Local Store)',
+          data: paginated,
+          meta: {
+            page: pageNumber,
+            limit: pageSize,
+            total: filtered.length,
+            totalPages: Math.ceil(filtered.length / pageSize),
+          },
+        });
+        return;
+      }
+
+      // If DB is connected, query PostgreSQL with fallback to in-memory store
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const where: any = {};
 
@@ -107,7 +124,7 @@ export class LeadController {
           });
 
           // Merge any newly scanned in-memory leads
-          const combined = [...inMemoryLeadStore.slice(0, 15), ...leads];
+          const combined = [...inMemoryLeadStore.slice(0, 50), ...leads];
           const seen = new Set<string>();
           const unique = combined.filter((l) => {
             const key = (l.linkedinUrl || l.name || '').toLowerCase();
@@ -132,7 +149,7 @@ export class LeadController {
         console.warn('⚠️ DB query notice, serving from verified in-memory store:', dbErr.message);
       }
 
-      // Fallback to in-memory store (Guaranteed zero 404s, always rich and verified)
+      // Fallback to in-memory store
       let filtered = [...inMemoryLeadStore];
       if (q) {
         const queryStr = String(q).toLowerCase();
@@ -150,7 +167,7 @@ export class LeadController {
       }
 
       ApiResponse.success(res, {
-        message: 'Leads retrieved successfully',
+        message: 'Leads retrieved successfully (Fallback Store)',
         data: filtered.slice(skip, skip + pageSize),
         meta: {
           page: pageNumber,
@@ -167,6 +184,13 @@ export class LeadController {
   static async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
+      if (!isDbConnected) {
+        const lead = inMemoryLeadStore.find((l) => l.id === id);
+        if (!lead) throw AppError.notFound(`Lead with ID ${id} not found`);
+        ApiResponse.success(res, { data: lead });
+        return;
+      }
+
       const lead = await prisma.lead.findUnique({
         where: { id },
         include: { user: { select: { id: true, email: true, credits: true } } },
@@ -189,6 +213,18 @@ export class LeadController {
     try {
       const validated = createLeadSchema.parse(req.body);
 
+      if (!isDbConnected) {
+        const newLead = {
+          id: `lead_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          ...validated,
+          createdAt: new Date().toISOString(),
+        };
+        inMemoryLeadStore.unshift(newLead);
+        saveLeadsToDisk(inMemoryLeadStore);
+        ApiResponse.created(res, { message: 'Lead created successfully', data: newLead });
+        return;
+      }
+
       const lead = await prisma.lead.create({
         data: validated,
       });
@@ -207,6 +243,15 @@ export class LeadController {
       const { id } = req.params;
       const data = updateLeadSchema.parse(req.body);
 
+      if (!isDbConnected) {
+        const idx = inMemoryLeadStore.findIndex((l) => l.id === id);
+        if (idx === -1) throw AppError.notFound(`Lead with ID ${id} not found`);
+        inMemoryLeadStore[idx] = { ...inMemoryLeadStore[idx], ...data };
+        saveLeadsToDisk(inMemoryLeadStore);
+        ApiResponse.success(res, { message: 'Lead updated successfully', data: inMemoryLeadStore[idx] });
+        return;
+      }
+
       const lead = await prisma.lead.update({
         where: { id },
         data,
@@ -224,6 +269,16 @@ export class LeadController {
   static async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
+
+      if (!isDbConnected) {
+        const idx = inMemoryLeadStore.findIndex((l) => l.id === id);
+        if (idx === -1) throw AppError.notFound(`Lead with ID ${id} not found`);
+        inMemoryLeadStore.splice(idx, 1);
+        saveLeadsToDisk(inMemoryLeadStore);
+        ApiResponse.noContent(res);
+        return;
+      }
+
       await prisma.lead.delete({ where: { id } });
       ApiResponse.noContent(res);
     } catch (err) {
@@ -234,15 +289,13 @@ export class LeadController {
   /**
    * GET /api/v1/leads/stream
    * Server-Sent Events endpoint — pushes real-time scan progress to the browser.
-   * The client connects once and receives "progress" events until the stream closes.
    */
   static streamScanProgress(req: Request, res: Response): void {
-    // SSE headers
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no', // Disable Nginx buffering on Render
+      'X-Accel-Buffering': 'no',
     });
     res.flushHeaders();
 
@@ -269,15 +322,12 @@ export class LeadController {
       i++;
     }, 1500);
 
-    // Clean up if client disconnects early
     req.on('close', () => clearInterval(interval));
   }
 
   /**
    * POST /api/leads/scan
-   * Accepts search criteria, enqueues a BullMQ lead-enrichment job,
-   * and returns 202 Accepted with the job ID immediately.
-   * The actual processing happens asynchronously in the Worker.
+   * Executes live multi-platform lead discovery and immediately returns enriched leads.
    */
   static async runTargetedScan(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -289,7 +339,7 @@ export class LeadController {
         location: z.string().max(255).optional(),
         industry: z.string().max(255).optional(),
         keywords: z.array(z.string()).max(20).optional(),
-        maxResults: z.number().int().min(1).max(50).optional().default(10),
+        maxResults: z.number().int().min(1).max(50).optional().default(50),
         apiKey: z.string().optional(),
       });
 
@@ -300,10 +350,10 @@ export class LeadController {
       }
       const payload = scanSchema.parse(rawBody);
 
-      console.log(`🚀 [LeadController] Executing direct multi-platform discovery for "${payload.query || payload.jobTitle || 'Executive'}" on "${payload.platform || 'linkedin'}"...`);
+      console.log(`🚀 [LeadController] Executing direct multi-platform discovery for "${payload.query || payload.jobTitle || 'Executive'}" on "${payload.platform || 'linkedin'}" (target: ${payload.maxResults || 50})...`);
       const enriched = await scraperService.discoverLeads(payload);
 
-      // Prepend newly discovered leads to inMemoryLeadStore so they are instantly accessible
+      // Prepend newly discovered leads to inMemoryLeadStore and persist to disk
       for (const lead of enriched) {
         const existingIdx = inMemoryLeadStore.findIndex(
           (item) => item.linkedinUrl && lead.linkedinUrl && item.linkedinUrl.toLowerCase() === lead.linkedinUrl.toLowerCase()
@@ -319,28 +369,29 @@ export class LeadController {
           inMemoryLeadStore.unshift(formatted);
         }
       }
+      saveLeadsToDisk(inMemoryLeadStore);
 
-      // Persist to PostgreSQL safely via Prisma (skipping duplicates on conflict)
-      try {
-        let targetUserId = payload.userId;
-        if (payload.userId.includes('@')) {
-          const dbUser = await prisma.user.upsert({
-            where: { email: payload.userId },
-            update: {},
-            create: { email: payload.userId, credits: 500 },
-          });
-          targetUserId = dbUser.id;
-        } else {
-          const dbUser = await prisma.user.upsert({
-            where: { id: payload.userId },
-            update: {},
-            create: { id: payload.userId, email: `${payload.userId}@leadpulse.ai`, credits: 100 },
-          });
-          targetUserId = dbUser.id;
-        }
+      // ── Circuit Breaker: ONLY attempt Prisma write if isDbConnected is true ──
+      if (isDbConnected) {
+        try {
+          let targetUserId = payload.userId;
+          if (payload.userId.includes('@')) {
+            const dbUser = await prisma.user.upsert({
+              where: { email: payload.userId },
+              update: {},
+              create: { email: payload.userId, credits: 500 },
+            });
+            targetUserId = dbUser.id;
+          } else {
+            const dbUser = await prisma.user.upsert({
+              where: { id: payload.userId },
+              update: {},
+              create: { id: payload.userId, email: `${payload.userId}@leadpulse.ai`, credits: 100 },
+            });
+            targetUserId = dbUser.id;
+          }
 
-        if (enriched.length > 0) {
-          try {
+          if (enriched.length > 0) {
             await prisma.lead.createMany({
               data: enriched.map((l) => ({
                 userId: targetUserId,
@@ -356,29 +407,10 @@ export class LeadController {
               skipDuplicates: true,
             });
             console.log(`✅ [LeadController] Successfully committed ${enriched.length} leads to database.`);
-          } catch (insertErr: any) {
-            console.warn(`⚠️ [LeadController] createMany warning, trying single inserts:`, insertErr.message);
-            for (const l of enriched) {
-              try {
-                await prisma.lead.create({
-                  data: {
-                    userId: targetUserId,
-                    name: l.name,
-                    jobTitle: l.jobTitle ?? undefined,
-                    company: l.company,
-                    email: l.email ?? undefined,
-                    linkedinUrl: l.linkedinUrl ?? undefined,
-                    domain: l.domain ?? undefined,
-                    sourcePlatform: l.sourcePlatform || 'LinkedIn',
-                    verificationStatus: (l.verificationStatus as EmailVerificationStatus) || EmailVerificationStatus.VERIFIED,
-                  },
-                });
-              } catch (_) {}
-            }
           }
+        } catch (dbErr: any) {
+          console.warn(`⚠️ [LeadController] Prisma persist notice (saved to disk store):`, dbErr.message);
         }
-      } catch (dbErr: any) {
-        console.warn(`⚠️ [LeadController] Prisma persist notice (served from memory):`, dbErr.message);
       }
 
       // Optionally queue background job if queue is running
@@ -389,15 +421,13 @@ export class LeadController {
         });
       } catch (_) {}
 
-      res.status(200).json({
-        success: true,
-        message: 'Targeted scan completed successfully.',
-        count: enriched.length,
-        leads: enriched,
+      ApiResponse.success(res, {
+        statusCode: 200,
+        message: `Targeted scan completed successfully. Discovered ${enriched.length} verified B2B leads.`,
         data: {
-          status: 'completed',
-          count: enriched.length,
           leads: enriched,
+          count: enriched.length,
+          jobId: `scan-${payload.userId}-${Date.now()}`,
         },
       });
     } catch (err) {

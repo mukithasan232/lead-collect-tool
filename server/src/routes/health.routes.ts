@@ -1,21 +1,23 @@
 import { Router, Request, Response } from 'express';
-import { prisma } from '../config/db';
+import { prisma, isDbConnected, setDbConnected } from '../config/db';
 import { ApiResponse } from '../utils/apiResponse';
 
 export const healthRouter = Router();
 
 healthRouter.get('/', async (_req: Request, res: Response) => {
-  let dbStatus = 'disconnected';
+  let dbStatus = isDbConnected ? 'connected' : 'unreachable';
   let dbLatencyMs: number | null = null;
 
-  try {
-    const start = Date.now();
-    // PostgreSQL-compatible liveness check
-    await prisma.$queryRaw`SELECT 1`;
-    dbLatencyMs = Date.now() - start;
-    dbStatus = 'connected';
-  } catch {
-    dbStatus = 'unreachable';
+  if (isDbConnected) {
+    try {
+      const start = Date.now();
+      await prisma.$queryRaw`SELECT 1`;
+      dbLatencyMs = Date.now() - start;
+      dbStatus = 'connected';
+    } catch {
+      dbStatus = 'unreachable';
+      setDbConnected(false);
+    }
   }
 
   const payload = {

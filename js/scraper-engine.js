@@ -295,6 +295,7 @@ export function buildXRayQuery(platform, query) {
 }
 
 export async function fetchSerperDirect(xRayQuery, apiKey = '6f4ee01927a1bce8cd2a9ff7ca89c6ad95e885f7', num = 30) {
+  // 1. Try single batch first
   try {
     const res = await fetch('https://google.serper.dev/search', {
       method: 'POST',
@@ -312,7 +313,7 @@ export async function fetchSerperDirect(xRayQuery, apiKey = '6f4ee01927a1bce8cd2
 
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data.organic) && data.organic.length > 0) {
+      if (Array.isArray(data.organic) && data.organic.length >= 20) {
         return data.organic;
       }
     }
@@ -320,10 +321,11 @@ export async function fetchSerperDirect(xRayQuery, apiKey = '6f4ee01927a1bce8cd2
     console.warn('Serper direct initial query failed:', err);
   }
 
-  // Automatic fallback to num: 10 if num: 30 was rejected by Serper free account limit
-  if (num > 10) {
-    try {
-      const fallbackRes = await fetch('https://google.serper.dev/search', {
+  // 2. Parallel multi-page pagination (page 1, 2, 3, 4) to collect 30-50 real organic leads
+  try {
+    const pages = [1, 2, 3, 4];
+    const pageRequests = pages.map((page) =>
+      fetch('https://google.serper.dev/search', {
         method: 'POST',
         headers: {
           'X-API-KEY': apiKey,
@@ -334,15 +336,28 @@ export async function fetchSerperDirect(xRayQuery, apiKey = '6f4ee01927a1bce8cd2
           gl: 'us',
           hl: 'en',
           num: 10,
+          page,
         }),
-      });
-      if (fallbackRes.ok) {
-        const fallbackData = await fallbackRes.json();
-        return fallbackData.organic || [];
-      }
-    } catch (err2) {
-      console.warn('Serper num:10 fallback error:', err2);
+      })
+      .then((res) => (res.ok ? res.json() : { organic: [] }))
+      .then((data) => data.organic || [])
+      .catch(() => [])
+    );
+
+    const pageResults = await Promise.all(pageRequests);
+    const combined = pageResults.flat();
+    const seenLinks = new Set();
+    const unique = combined.filter((item) => {
+      if (!item.link || seenLinks.has(item.link.toLowerCase())) return false;
+      seenLinks.add(item.link.toLowerCase());
+      return true;
+    });
+
+    if (unique.length > 0) {
+      return unique;
     }
+  } catch (err2) {
+    console.warn('Serper multi-page fallback error:', err2);
   }
 
   return [];
