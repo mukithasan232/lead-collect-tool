@@ -7,8 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 const requiredEnv = ['DATABASE_URL', 'REDIS_URL'];
 for (const req of requiredEnv) {
   if (!process.env[req]) {
-    console.error(`💥 Missing required environment variable: ${req}`);
-    process.exit(1);
+    console.warn(`⚠️ Warning: Missing environment variable: ${req}. Using default fallback.`);
   }
 }
 

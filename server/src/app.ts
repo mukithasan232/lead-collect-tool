@@ -7,17 +7,20 @@ import { notFoundHandler } from './middleware/notFoundHandler';
 import { errorHandler } from './middleware/errorHandler';
 import { apiRouter } from './routes';
 
-const ALLOWED_ORIGINS = [
-  'https://lead.codernest.cloud',
-  'https://app.codernest.cloud',
-  'http://localhost:3000',
-];
-
 const corsOptions: cors.CorsOptions = {
-  origin: ALLOWED_ORIGINS,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  origin: true, // Allow all origins (localhost:3000, lead.codernest.cloud, *.vercel.app, *.render.com, etc.)
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept',
+    'x-search-api-key',
+    'X-Requested-With',
+    'Origin',
+    'Range',
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
 };
 
 export function createApp(): Application {
@@ -27,9 +30,10 @@ export function createApp(): Application {
   app.options('*', cors(corsOptions)); // Handle preflight for every route
   app.use(cors(corsOptions));          // Apply CORS headers to all responses
 
-  // Security headers (after CORS so CORS headers aren't overwritten)
+  // Security headers (configured to not block cross-origin browser fetch)
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginOpenerPolicy: false,
   }));
 
   // Body parsers

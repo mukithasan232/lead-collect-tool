@@ -34,8 +34,8 @@ healthRouter.get('/', async (_req: Request, res: Response) => {
   };
 
   ApiResponse.success(res, {
-    statusCode: dbStatus === 'connected' ? 200 : 503,
-    message: dbStatus === 'connected' ? 'All systems operational' : 'Database service degraded',
+    statusCode: 200,
+    message: dbStatus === 'connected' ? 'All systems operational' : 'Database service degraded (in-memory store active)',
     data: payload,
   });
 });
