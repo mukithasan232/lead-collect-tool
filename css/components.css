@@ -1559,6 +1559,7 @@ tr.lead-row-viewed {
   font-family: var(--font-display);
   background: linear-gradient(135deg, #10B981, #6EE7B7);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   line-height: 1;
 }
